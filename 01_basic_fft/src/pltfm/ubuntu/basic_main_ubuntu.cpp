@@ -1,4 +1,7 @@
 #include "../imgui_sdl2_ogl3/imgui_include.hpp"
+#include "../../display/display.hpp"
+
+namespace dsp = display;
 
 
 enum class RunState : int
@@ -13,6 +16,7 @@ namespace
 {
     ui::UIState ui_state{};
     RunState run_state = RunState::Begin;
+    dsp::DisplayState dsp_state{};
 }
 
 
@@ -103,7 +107,7 @@ static void render_imgui_frame()
     ui::show_imgui_demo(ui_state);
 #endif
 
-    //vd::video_frame_window(vd_state);
+    dsp::mic_window(dsp_state);
 
     ui::render(ui_state);
 }

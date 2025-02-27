@@ -52,9 +52,12 @@ numeric_h += $(types_h)
 #************
 
 
-#*** ui ***
+#*** mic ***
 
-ui := $(src)/ui
+mic := $(src)/mic
+
+mic_h := $(mic)/mic.hpp
+mic_c := $(mic)/mic.cpp
 
 #**********
 
@@ -69,6 +72,7 @@ main_dep := $(imgui_include_h)
 
 # main_o.cpp
 main_dep += $(pltfm)/main_o.cpp
+main_dep += $(mic_c)
 
 #****************
 
