@@ -1,0 +1,18 @@
+#pragma once
+
+#define DISABLE_GAMEPAD_INPUT
+
+#define IMGUI_DEFINE_MATH_OPERATORS
+
+#define IMGUI_USE_STB_SPRINTF
+//#define IMGUI_DISABLE_STB_SPRINTF_IMPLEMENTATION
+#define IMGUI_STB_SPRINTF_FILENAME "../stb_libs/stb_sprintf.h"
+
+
+#ifndef NDEBUG
+#define SHOW_IMGUI_DEMO
+#endif
+
+#ifndef SHOW_IMGUI_DEMO
+#define IMGUI_DISABLE_DEMO_WINDOWS
+#endif
