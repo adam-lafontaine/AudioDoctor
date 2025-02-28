@@ -124,12 +124,15 @@ static bool main_init()
         return false;
     }
 
+    dsp::open(dsp_state);
+
     return true;
 }
 
 
 static void main_close()
 {
+    dsp::close(dsp_state);
     ui::close(ui_state);
 }
 

@@ -52,6 +52,17 @@ numeric_h += $(types_h)
 #************
 
 
+#*** stb_libs ***
+
+stb_libs := $(libs)/stb_libs
+
+qsprintf_h := $(stb_libs)/qsprintf.hpp
+
+stb_libs_c := $(stb_libs)/stb_libs.cpp
+
+#*************
+
+
 #*** mic ***
 
 mic := $(src)/mic
@@ -60,6 +71,17 @@ mic_h := $(mic)/mic.hpp
 mic_c := $(mic)/mic.cpp
 
 #**********
+
+
+#*** display ***
+
+display := $(src)/display
+
+display_h := $(display)/display.hpp
+display_h += $(qsprintf_h)
+display_h += $(mic_h)
+
+#***************
 
 
 #*** main cpp ***
@@ -72,7 +94,8 @@ main_dep := $(imgui_include_h)
 
 # main_o.cpp
 main_dep += $(pltfm)/main_o.cpp
-main_dep += $(mic_c)
+main_dep += $(display_h)
+main_dep += $(stb_libs_c)
 
 #****************
 
