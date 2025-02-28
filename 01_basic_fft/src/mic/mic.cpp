@@ -1,10 +1,8 @@
 #include "mic.hpp"
+#include "../../../libs/fft/fft.hpp"
 
 #include <SDL2/SDL.h>
 #include <cstdlib>
-
-
-
 
 
 namespace mic
@@ -18,7 +16,8 @@ namespace mic
     static constexpr int DEVICE_RUN = 0;
     static constexpr int DEVICE_PAUSE = 1;
 
-    static constexpr int FFT_SIZE = 1024; // Power of 2 for Ooura
+
+    using FFT = fft::FFT<10>;
     
 
 
@@ -28,7 +27,7 @@ namespace mic
         SDL_AudioSpec spec;
         SDL_AudioDeviceID device;
 
-
+        FFT fft;
 
         static StateData* create() { return (StateData*)std::malloc(sizeof(StateData)); }
 
@@ -108,6 +107,8 @@ namespace mic
 
         data.device = device;
         state.status = MicStatus::Open;
+
+        fft::init(data.fft);
 
         return true;
     }

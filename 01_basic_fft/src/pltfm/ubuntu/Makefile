@@ -63,11 +63,25 @@ stb_libs_c := $(stb_libs)/stb_libs.cpp
 #*************
 
 
+#*** fft ***
+
+fft := $(libs)/fft
+
+fft_h := $(fft)/fft.hpp
+fft_h += $(numeric_h)
+
+fft_c := $(fft)/fft.cpp
+
+#**********
+
+
 #*** mic ***
 
 mic := $(src)/mic
 
 mic_h := $(mic)/mic.hpp
+mic_h += $(fft_h)
+
 mic_c := $(mic)/mic.cpp
 
 #**********
@@ -96,6 +110,8 @@ main_dep := $(imgui_include_h)
 main_dep += $(pltfm)/main_o.cpp
 main_dep += $(display_h)
 main_dep += $(stb_libs_c)
+main_dep += $(mic_c)
+main_dep += $(fft_c)
 
 #****************
 
