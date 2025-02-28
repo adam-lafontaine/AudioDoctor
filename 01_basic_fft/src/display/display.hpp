@@ -2,7 +2,11 @@
 
 #include "../../../libs/imgui/imgui.h"
 #include "../../../libs/stb_libs/qsprintf.hpp"
+#include "../../../libs/util/numeric.hpp"
 #include "../mic/mic.hpp"
+
+
+namespace num = numeric;
 
 
 namespace display
@@ -32,6 +36,36 @@ namespace internal
     };
 
 
+    static void select_process(mic::MicDevice& mic)
+    {   
+        using AP = mic::AudioProc;
+
+        constexpr auto fft = (int)AP::FFT;
+        constexpr auto ichunk = (int)AP::InfoChunk;
+        constexpr auto ibuffer = (int)AP::InfoBuffer;
+        constexpr auto ifft = (int)AP::InfoFFT;
+
+        static int option = (int)AP::FFT;
+
+        ImGui::RadioButton("FFT", &option, fft);
+        ImGui::SameLine();
+        ImGui::RadioButton("Chunk info", &option, ichunk);
+        ImGui::SameLine();
+        ImGui::RadioButton("Buffer info", &option, ibuffer);
+        ImGui::SameLine();
+        ImGui::RadioButton("FFT info", &option, ifft);
+
+        int proc = (int)mic.audio_proc;
+
+        if (option == proc)
+        {
+            return;
+        }
+
+        mic.audio_proc = (AP)option;
+    }
+
+
     static void plot_samples(PlotProps& props, mic::MicDevice const& mic)
     {
         ++props.index;
@@ -47,9 +81,141 @@ namespace internal
         constexpr auto data_stride = sizeof(f32);
 
         char overlay[32] = { 0 };
-        //stb::qsnprintf(overlay, 32, "%3.1f", mic.sample);
+        stb::qsnprintf(overlay, 32, "%3.1f", mic.sample);
 
         ImGui::PlotLines("Samples", 
+            plot_data, 
+            data_count, 
+            data_offset, 
+            overlay,
+            plot_min, plot_max, 
+            plot_size, 
+            data_stride);
+    }
+
+
+    static void plot_chunk_samples(PlotProps& props, mic::MicDevice const& mic)
+    {
+        static u32 chunk_max = 0;
+
+        ++props.index;
+        props.data[props.index] = (f32)mic.chunk_samples;
+
+        chunk_max = num::max(mic.chunk_samples, chunk_max);
+
+        auto plot_data = props.data;
+        int data_count = props.count;
+        int data_offset = (int)props.index;
+
+        constexpr auto plot_min = 0.0f;
+        constexpr auto plot_size = ImVec2(0, 80.0f);
+        constexpr auto data_stride = sizeof(f32);
+
+        auto plot_max = (f32)chunk_max;
+
+        char overlay[32] = { 0 };
+        stb::qsnprintf(overlay, 32, "%u", mic.chunk_samples);
+
+        ImGui::PlotLines("Chunk sizes", 
+            plot_data, 
+            data_count, 
+            data_offset, 
+            overlay,
+            plot_min, plot_max, 
+            plot_size, 
+            data_stride);        
+    }
+
+
+    static void plot_chunk_times(PlotProps& props, mic::MicDevice const& mic)
+    {
+        static f32 ms_max = 0.0f;
+
+        ++props.index;
+        props.data[props.index] = (f32)mic.chunk_ms;
+
+        ms_max = num::max((f32)mic.chunk_ms, ms_max);
+
+        auto plot_data = props.data;
+        int data_count = props.count;
+        int data_offset = (int)props.index;
+
+        constexpr auto plot_min = 0.0f;
+        constexpr auto plot_size = ImVec2(0, 80.0f);
+        constexpr auto data_stride = sizeof(f32);
+
+        auto plot_max = ms_max;
+
+        char overlay[32] = { 0 };
+        stb::qsnprintf(overlay, 32, "%f", mic.chunk_ms);
+
+        ImGui::PlotLines("Chunk times", 
+            plot_data, 
+            data_count, 
+            data_offset, 
+            overlay,
+            plot_min, plot_max, 
+            plot_size, 
+            data_stride);
+    }
+
+
+    static void plot_buffer_times(PlotProps& props, mic::MicDevice const& mic)
+    {
+        static f32 ms_max = 0.0f;
+
+        ++props.index;
+        props.data[props.index] = (f32)mic.fill_buffer_ms;
+
+        ms_max = num::max((f32)mic.fill_buffer_ms, ms_max);
+
+        auto plot_data = props.data;
+        int data_count = props.count;
+        int data_offset = (int)props.index;
+
+        constexpr auto plot_min = 0.0f;
+        constexpr auto plot_size = ImVec2(0, 80.0f);
+        constexpr auto data_stride = sizeof(f32);
+
+        auto plot_max = ms_max;
+
+        char overlay[32] = { 0 };
+        stb::qsnprintf(overlay, 32, "%f", mic.fill_buffer_ms);
+
+        ImGui::PlotLines("Buffer times", 
+            plot_data, 
+            data_count, 
+            data_offset, 
+            overlay,
+            plot_min, plot_max, 
+            plot_size, 
+            data_stride);
+    }
+
+
+    static void plot_fft_times(PlotProps& props, mic::MicDevice const& mic)
+    {
+        static f32 ms_max = 0.0f;
+
+        ++props.index;
+        props.data[props.index] = (f32)mic.fft_ms;
+
+        ms_max = num::max((f32)mic.fft_ms, ms_max);
+
+        auto plot_data = props.data;
+        int data_count = props.count;
+        int data_offset = (int)props.index;
+
+        constexpr auto plot_min = 0.0f;
+        constexpr auto plot_size = ImVec2(0, 80.0f);
+        constexpr auto data_stride = sizeof(f32);
+
+        auto plot_max = ms_max;
+
+        char overlay[32] = { 0 };
+        stb::qsnprintf(overlay, 32, "%f", mic.fft_ms);
+
+        ImGui::PlotLines("FFT times", 
             plot_data, 
             data_count, 
             data_offset, 
@@ -92,9 +258,22 @@ namespace display
 
         if (pause_disabled) { ImGui::EndDisabled(); }
 
-        static internal::PlotProps sample_props{};
+        internal::select_process(state.mic);
 
+        static internal::PlotProps sample_props{};
         internal::plot_samples(sample_props, state.mic);
+
+        static internal::PlotProps chunk_sample_props{};
+        internal::plot_chunk_samples(chunk_sample_props, state.mic);
+
+        static internal::PlotProps chunk_time_props{};
+        internal::plot_chunk_times(chunk_time_props, state.mic);
+
+        static internal::PlotProps buffer_time_props{};
+        internal::plot_buffer_times(buffer_time_props, state.mic);
+
+        static internal::PlotProps fft_time_props{};
+        internal::plot_fft_times(fft_time_props, state.mic);
 
         ImGui::End();
     }

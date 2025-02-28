@@ -12,11 +12,31 @@ namespace mic
         Running
     };
 
+
+    enum class AudioProc : int
+    {
+        FFT = 0,
+        InfoChunk,
+        InfoBuffer,
+        InfoFFT
+    };
+
+
     class MicDevice
     {
     public:
-        f32 sample = 0.0f;
         MicStatus status = MicStatus::Closed;
+        AudioProc audio_proc = AudioProc::FFT;
+
+        f32 sample = 0.0f;
+
+        u32 chunk_samples = 0;
+        f64 chunk_ms = 0.0;
+
+        f64 fill_buffer_ms = 0;
+        f64 fft_ms = 0.0;
+
+        f64 cb_ms;
 
         u64 handle = 0;
     };

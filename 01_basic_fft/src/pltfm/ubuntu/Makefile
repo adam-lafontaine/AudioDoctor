@@ -1,7 +1,7 @@
 GPP := g++-11
 
 GPP += -std=c++20
-GPP += -mavx
+GPP += -mavx -mavx2 -mfma
 #GPP += -O3
 #GPP += -DNDEBUG
 
@@ -49,6 +49,8 @@ types_h := $(util)/types.hpp
 numeric_h := $(util)/numeric.hpp
 numeric_h += $(types_h)
 
+stopwatch_h    := $(util)/stopwatch.hpp
+
 #************
 
 
@@ -83,6 +85,7 @@ mic_h := $(mic)/mic.hpp
 mic_h += $(fft_h)
 
 mic_c := $(mic)/mic.cpp
+mic_c += $(stopwatch_h)
 
 #**********
 

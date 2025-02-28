@@ -1,5 +1,6 @@
 #include "mic.hpp"
 #include "../../../libs/fft/fft.hpp"
+#include "../../../libs/util/stopwatch.hpp"
 
 #include <SDL2/SDL.h>
 #include <cstdlib>
@@ -55,16 +56,158 @@ namespace mic
     }
 
 
-    static void mic_audio_cb(void* userdata, Uint8* stream, int len)
+    static void chunk_info(MicDevice& state, int len_8, Stopwatch& sw)
     {
-        auto& state = *(MicDevice*)userdata;
+        auto len = len_8 / sizeof(f32);
+
+        state.chunk_samples = (u32)len;
+
+        state.chunk_ms = sw.get_time_milli();
+        sw.start();
+    }
+
+
+    static void buffer_info(MicDevice& state, Uint8* stream, int len_8, Stopwatch& sw)
+    {                
+        auto& data = get_data(state);
+
+        static u32 b = 0;
+        auto const push_sample = [&](f32 sample)
+        {
+            state.sample = sample;
+            data.fft.buffer[b++] = (f64)sample;
+
+            if (b >= data.fft.size)
+            {
+                b = 0;
+                state.fill_buffer_ms = sw.get_time_milli();
+                sw.start();
+            }
+        };
+
         f32* audio_data = (f32*)stream;
-        len /= sizeof(f32);
+        auto len = len_8 / sizeof(f32);
 
         for (u32 i = 0; i < len; i++)
         {
-            state.sample = audio_data[i];
+            push_sample(audio_data[i]);
         }
+    }
+
+
+    static void fft_info(MicDevice& state, Uint8* stream, int len_8)
+    {
+        static Stopwatch sw;
+
+        auto& data = get_data(state);
+
+        static u32 b = 0;
+        auto const push_sample = [&](f32 sample)
+        {
+            state.sample = sample;
+            data.fft.buffer[b++] = (f64)sample;
+
+            if (b >= data.fft.size)
+            {
+                sw.start();
+                b = 0;
+                data.fft.forward(data.fft.bins);
+                state.fft_ms = sw.get_time_milli();                
+            }
+        };
+
+        f32* audio_data = (f32*)stream;
+        auto len = len_8 / sizeof(f32);
+
+        for (u32 i = 0; i < len; i++)
+        {
+            push_sample(audio_data[i]);
+        }
+    }
+
+
+    static void process_audio_fft(MicDevice& state, Uint8* stream, int len_8)
+    {
+        auto& data = get_data(state);
+
+        static u32 b = 0;
+        auto const push_sample = [&](f32 sample)
+        {
+            state.sample = sample;
+            data.fft.buffer[b++] = (f64)sample;
+
+            if (b >= data.fft.size)
+            {
+                b = 0;
+                data.fft.forward(data.fft.bins);
+            }
+        };
+
+        f32* audio_data = (f32*)stream;
+        auto len = len_8 / sizeof(f32);
+
+        for (u32 i = 0; i < len; i++)
+        {
+            push_sample(audio_data[i]);
+        }
+    }
+
+
+    static void mic_audio_cb(void* userdata, Uint8* stream, int len_8)
+    {     
+        static Stopwatch sw;
+        static Stopwatch cb_sw;
+
+        static bool chunk = true;
+        static bool buffer = true;
+        static bool fft = true;
+
+        using AP = AudioProc;
+
+        cb_sw.start();
+
+        auto& state = *(MicDevice*)userdata;
+
+        switch (state.audio_proc)
+        {
+        case AP::FFT:
+            chunk = buffer = fft = true;
+            process_audio_fft(state, stream, len_8);
+            break;
+
+        case AP::InfoChunk:
+            buffer = fft = true;
+            if (chunk)
+            {
+                chunk = false;
+                sw.start();
+            }
+            chunk_info(state, len_8, sw);
+            break;
+
+        case AP::InfoBuffer:
+            chunk = fft = true;
+            if (buffer)
+            {
+                buffer = false;
+                sw.start();
+            }
+            buffer_info(state, stream, len_8, sw);
+            break;
+
+        case AP::InfoFFT:
+            chunk = buffer = true;
+            if (fft)
+            {
+                fft = false;
+            }
+            fft_info(state, stream, len_8);
+            break;
+
+        default: break;
+        }
+
+        state.cb_ms = cb_sw.get_time_milli();
     }
 }
 
@@ -74,6 +217,7 @@ namespace mic
     bool init(MicDevice& state)
     {
         state.status = MicStatus::Closed;
+        state.audio_proc = AudioProc::FFT;
 
         if (SDL_Init(SDL_INIT_AUDIO) < 0)
         {
@@ -108,7 +252,7 @@ namespace mic
         data.device = device;
         state.status = MicStatus::Open;
 
-        fft::init(data.fft);
+        data.fft.init();
 
         return true;
     }

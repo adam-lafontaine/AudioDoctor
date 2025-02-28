@@ -23,7 +23,33 @@ namespace internal
     }
 
 
+    static constexpr u32 fft_size(u32 base2_exp)
+    {
+        return (u32)num::cxpr::pow(2.0f, base2_exp); // Power of 2 for Ooura
+    }
+
+
+    static constexpr u32 fft_ip_size(u32 size)
+    {
+        return 2 + sqrt_approx(size / 2);
+    }
+
+
+    static constexpr u32 fft_w_size(u32 size)
+    {
+        return size / 2;
+    }
+
+
+    static constexpr u32 fft_bin_size(u32 size)
+    {
+        return (size - 2) / 2;
+    }
+
+
     void init(u32 n, f64* buffer, i32* ip, f64* w);
+
+    void forward(u32 n, f64* buffer, i32* ip, f64* w, f32* bins);
 
 }
 }
@@ -31,26 +57,27 @@ namespace internal
 
 namespace fft
 {   
-    template <u32 N>
+    //template <u32 N>
+
+
+    template <u32 B2EXP>
     class FFT
     {
     public:
 
-        static constexpr u32 FFT_2_EXP = 10;
-        static constexpr u32 FFT_SIZE = (u32)num::cxpr::pow(2.0f, FFT_2_EXP); // Power of 2 for Ooura
-        static constexpr u32 FFT_IP_SIZE = 2 + internal::sqrt_approx(FFT_SIZE / 2);
-        static constexpr u32 FFT_W_SIZE = FFT_SIZE / 2;
+        static constexpr u32 exp = B2EXP;
+        static constexpr u32 size = internal::fft_size(exp);
 
-        i32 ip[FFT_IP_SIZE];
-        f64 w[FFT_W_SIZE];
+        f64 buffer[size];
 
-        f64 buffer[FFT_SIZE];
+        i32 ip[internal::fft_ip_size(size)];
+        f64 w[internal::fft_w_size(size)];
+
+        f32 bins[internal::fft_bin_size(size)];
+
+
+        void init() { internal::init(size, buffer, ip, w); }
+
+        void forward(f32* bins) { internal::forward(size, buffer, ip, w, bins); }
     };
-
-
-    template <u32 N>
-    inline void init(FFT<N>& fft)
-    {
-        internal::init(fft.FFT_SIZE, fft.buffer, fft.ip, fft.w);
-    }
 }
