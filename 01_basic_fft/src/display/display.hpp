@@ -224,6 +224,89 @@ namespace internal
             plot_size, 
             data_stride);
     }
+
+
+    static void plot_fft_bin(PlotProps& props, mic::MicDevice const& mic, u32 bin)
+    {
+        auto value = mic.fft_bins.data[bin];
+
+        static f32 value_max = 0.0f;
+
+        value_max = num::max(value, value_max);
+
+        ++props.index;
+        props.data[props.index] = (f32)mic.fft_ms;
+
+        auto plot_data = props.data;
+        int data_count = props.count;
+        int data_offset = (int)props.index;
+
+        constexpr auto plot_min = 0.0f;
+        constexpr auto plot_size = ImVec2(0, 20.0f);
+        constexpr auto data_stride = sizeof(f32);
+
+        auto plot_max = value_max;
+
+        char title[32] = { 0 };
+        stb::qsnprintf(title, 32, "Bin #%u", bin);
+
+        char overlay[32] = { 0 };
+        stb::qsnprintf(overlay, 32, "%f", value);
+
+        ImGui::PlotLines(title, 
+            plot_data, 
+            data_count, 
+            data_offset, 
+            overlay,
+            plot_min, plot_max, 
+            plot_size, 
+            data_stride);
+    }
+
+
+    static void show_mic_info(DisplayState& state)
+    {
+        if (!ImGui::CollapsingHeader("Info"))
+        {
+            return;
+        }
+
+        static PlotProps sample_props{};
+        plot_samples(sample_props, state.mic);
+
+        static PlotProps chunk_sample_props{};
+        plot_chunk_samples(chunk_sample_props, state.mic);
+
+        static PlotProps chunk_time_props{};
+        plot_chunk_times(chunk_time_props, state.mic);
+
+        static PlotProps buffer_time_props{};
+        plot_buffer_times(buffer_time_props, state.mic);
+
+        static PlotProps fft_time_props{};
+        plot_fft_times(fft_time_props, state.mic);
+    }
+
+
+    static void show_fft_bins(DisplayState& state)
+    {
+        if (!ImGui::CollapsingHeader("Bins"))
+        {
+            return;
+        }
+
+        constexpr u32 N = 1024;
+
+        auto& bins = state.mic.fft_bins;
+        assert(bins.length <= N);
+
+        static PlotProps props[N];
+
+        for (u32 i = 0; i <bins.length; i++)
+        {
+            plot_fft_bin(props[i], state.mic, i);
+        }
+    }
 }
 }
 
@@ -260,20 +343,8 @@ namespace display
 
         internal::select_process(state.mic);
 
-        static internal::PlotProps sample_props{};
-        internal::plot_samples(sample_props, state.mic);
-
-        static internal::PlotProps chunk_sample_props{};
-        internal::plot_chunk_samples(chunk_sample_props, state.mic);
-
-        static internal::PlotProps chunk_time_props{};
-        internal::plot_chunk_times(chunk_time_props, state.mic);
-
-        static internal::PlotProps buffer_time_props{};
-        internal::plot_buffer_times(buffer_time_props, state.mic);
-
-        static internal::PlotProps fft_time_props{};
-        internal::plot_fft_times(fft_time_props, state.mic);
+        internal::show_mic_info(state);
+        internal::show_fft_bins(state);
 
         ImGui::End();
     }

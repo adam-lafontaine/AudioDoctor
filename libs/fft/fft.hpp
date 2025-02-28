@@ -67,13 +67,14 @@ namespace fft
 
         static constexpr u32 exp = B2EXP;
         static constexpr u32 size = internal::fft_size(exp);
+        static constexpr u32 n_bins = internal::fft_bin_size(size);
 
         f64 buffer[size];
 
         i32 ip[internal::fft_ip_size(size)];
         f64 w[internal::fft_w_size(size)];
 
-        f32 bins[internal::fft_bin_size(size)];
+        f32 bins[n_bins];
 
 
         void init() { internal::init(size, buffer, ip, w); }

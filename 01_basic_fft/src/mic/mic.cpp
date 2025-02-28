@@ -18,8 +18,7 @@ namespace mic
     static constexpr int DEVICE_PAUSE = 1;
 
 
-    using FFT = fft::FFT<10>;
-    
+    using FFT = fft::FFT<10>;    
 
 
     class StateData
@@ -253,6 +252,9 @@ namespace mic
         state.status = MicStatus::Open;
 
         data.fft.init();
+
+        state.fft_bins.data = data.fft.bins;
+        state.fft_bins.length = data.fft.n_bins;
 
         return true;
     }

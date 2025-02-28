@@ -22,6 +22,14 @@ namespace mic
     };
 
 
+    class Span
+    {
+    public:
+        f32* data = 0;
+        u32 length = 0;
+    };
+
+
     class MicDevice
     {
     public:
@@ -37,6 +45,8 @@ namespace mic
         f64 fft_ms = 0.0;
 
         f64 cb_ms;
+
+        Span fft_bins;
 
         u64 handle = 0;
     };
