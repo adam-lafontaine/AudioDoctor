@@ -18,7 +18,7 @@ namespace mic
     static constexpr int DEVICE_PAUSE = 1;
 
 
-    using FFT = fft::FFT<10>;    
+    using FFT = fft::FFT<9>;    
 
 
     class StateData
@@ -55,8 +55,10 @@ namespace mic
     }
 
 
-    static void chunk_info(MicDevice& state, int len_8, Stopwatch& sw)
+    static void chunk_info(MicDevice& state, int len_8)
     {
+        static Stopwatch sw;
+
         auto len = len_8 / sizeof(f32);
 
         state.chunk_samples = (u32)len;
@@ -66,8 +68,10 @@ namespace mic
     }
 
 
-    static void buffer_info(MicDevice& state, Uint8* stream, int len_8, Stopwatch& sw)
-    {                
+    static void buffer_info(MicDevice& state, Uint8* stream, int len_8)
+    {    
+        static Stopwatch sw;
+
         auto& data = get_data(state);
 
         static u32 b = 0;
@@ -153,13 +157,8 @@ namespace mic
 
 
     static void mic_audio_cb(void* userdata, Uint8* stream, int len_8)
-    {     
-        static Stopwatch sw;
+    { 
         static Stopwatch cb_sw;
-
-        static bool chunk = true;
-        static bool buffer = true;
-        static bool fft = true;
 
         using AP = AudioProc;
 
@@ -170,36 +169,18 @@ namespace mic
         switch (state.audio_proc)
         {
         case AP::FFT:
-            chunk = buffer = fft = true;
             process_audio_fft(state, stream, len_8);
             break;
 
         case AP::InfoChunk:
-            buffer = fft = true;
-            if (chunk)
-            {
-                chunk = false;
-                sw.start();
-            }
-            chunk_info(state, len_8, sw);
+            chunk_info(state, len_8);
             break;
 
         case AP::InfoBuffer:
-            chunk = fft = true;
-            if (buffer)
-            {
-                buffer = false;
-                sw.start();
-            }
-            buffer_info(state, stream, len_8, sw);
+            buffer_info(state, stream, len_8);
             break;
 
         case AP::InfoFFT:
-            chunk = buffer = true;
-            if (fft)
-            {
-                fft = false;
-            }
             fft_info(state, stream, len_8);
             break;
 
