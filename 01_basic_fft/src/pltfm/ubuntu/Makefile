@@ -1,7 +1,7 @@
 GPP := g++-11
 
 GPP += -std=c++20
-GPP += -mavx
+GPP += -mavx -mavx2 -mfma
 #GPP += -O3
 #GPP += -DNDEBUG
 
@@ -49,14 +49,56 @@ types_h := $(util)/types.hpp
 numeric_h := $(util)/numeric.hpp
 numeric_h += $(types_h)
 
+stopwatch_h    := $(util)/stopwatch.hpp
+
 #************
 
 
-#*** ui ***
+#*** stb_libs ***
 
-ui := $(src)/ui
+stb_libs := $(libs)/stb_libs
+
+qsprintf_h := $(stb_libs)/qsprintf.hpp
+
+stb_libs_c := $(stb_libs)/stb_libs.cpp
+
+#*************
+
+
+#*** fft ***
+
+fft := $(libs)/fft
+
+fft_h := $(fft)/fft.hpp
+fft_h += $(numeric_h)
+
+fft_c := $(fft)/fft.cpp
 
 #**********
+
+
+#*** mic ***
+
+mic := $(src)/mic
+
+mic_h := $(mic)/mic.hpp
+mic_h += $(fft_h)
+
+mic_c := $(mic)/mic.cpp
+mic_c += $(stopwatch_h)
+
+#**********
+
+
+#*** display ***
+
+display := $(src)/display
+
+display_h := $(display)/display.hpp
+display_h += $(qsprintf_h)
+display_h += $(mic_h)
+
+#***************
 
 
 #*** main cpp ***
@@ -69,6 +111,10 @@ main_dep := $(imgui_include_h)
 
 # main_o.cpp
 main_dep += $(pltfm)/main_o.cpp
+main_dep += $(display_h)
+main_dep += $(stb_libs_c)
+main_dep += $(mic_c)
+main_dep += $(fft_c)
 
 #****************
 

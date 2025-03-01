@@ -7,6 +7,7 @@
 
 #ifdef __AVX__
 #define NUMERIC_SIMD_128
+// -mavx -mavx2 -mfma
 
 #include <immintrin.h>
 
