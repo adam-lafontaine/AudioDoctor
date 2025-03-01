@@ -17,8 +17,10 @@ namespace mic
     static constexpr int DEVICE_RUN = 0;
     static constexpr int DEVICE_PAUSE = 1;
 
+    static constexpr u32 FFT_EXP = 8;
 
-    using FFT = fft::FFT<9>;    
+
+    using FFT = fft::FFT<FFT_EXP>;    
 
 
     class StateData

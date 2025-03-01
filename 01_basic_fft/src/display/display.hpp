@@ -271,20 +271,31 @@ namespace internal
             return;
         }
 
+        using AP = mic::AudioProc;
+
         static PlotProps sample_props{};
+        static PlotProps chunk_sample_props{};
+        static PlotProps chunk_time_props{};
+        static PlotProps buffer_time_props{};
+        static PlotProps fft_time_props{};
+
         plot_samples(sample_props, state.mic);
 
-        static PlotProps chunk_sample_props{};
-        plot_chunk_samples(chunk_sample_props, state.mic);
+        if (state.mic.audio_proc == AP::InfoChunk)
+        {
+            plot_chunk_samples(chunk_sample_props, state.mic);
+            plot_chunk_times(chunk_time_props, state.mic);
+        }
 
-        static PlotProps chunk_time_props{};
-        plot_chunk_times(chunk_time_props, state.mic);
+        if (state.mic.audio_proc == AP::InfoBuffer)
+        {
+            plot_buffer_times(buffer_time_props, state.mic);
+        }
 
-        static PlotProps buffer_time_props{};
-        plot_buffer_times(buffer_time_props, state.mic);
-
-        static PlotProps fft_time_props{};
-        plot_fft_times(fft_time_props, state.mic);
+        if (state.mic.audio_proc == AP::InfoFFT)
+        {
+            plot_fft_times(fft_time_props, state.mic);
+        }
     }
 
 

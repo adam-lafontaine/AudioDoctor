@@ -47,7 +47,7 @@ namespace internal
     }
 
 
-    void init(u32 n, f64* buffer, i32* ip, f64* w);
+    void init_ip_w(u32 n, f64* buffer, i32* ip, f64* w);
 
     void forward(u32 n, f64* buffer, i32* ip, f64* w, f32* bins);
 
@@ -77,7 +77,7 @@ namespace fft
         f32 bins[n_bins];
 
 
-        void init() { internal::init(size, buffer, ip, w); }
+        void init() { internal::init_ip_w(size, buffer, ip, w); for (u32 i = 0; i < n_bins; i++) { bins[i] = 0.0f; } }
 
         void forward(f32* bins) { internal::forward(size, buffer, ip, w, bins); }
     };
