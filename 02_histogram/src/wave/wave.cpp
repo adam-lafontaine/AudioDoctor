@@ -70,13 +70,13 @@ namespace wave
     }
 
 
-    static void generate_square_wave_fft(WaveContext& ctx, u32 freq)
+    static void generate_square_wave_fft(WaveContext& ctx, u32 wavelength)
     {  
         auto& fft = get_data(ctx).fft;
         
         for (u32 i = 0; i < fft.size; i++)
         {
-            auto s = (i / freq) % 2 ? 1.0 : -1.0;
+            auto s = (i / wavelength) % 2 ? 1.0 : -1.0;
 
             ctx.samples.data[i] = s;
             fft.buffer[i] = s;
@@ -95,32 +95,34 @@ namespace wave
 
         auto& data = get_data(ctx);
 
-        u32 min = 2u;
-        u32 max = N / 2;
+        constexpr u32 min = 2u;
+        constexpr u32 max = N / 2;
 
-        auto f = ctx.freq_ratio;
-
-        u32 freq = num::round_to_unsigned<u32>(min + f * (max - min));
+        u32 wavelength = 0;
+        f32 wl = 0.0f;       
 
         auto const reset = [&]()
         {
             w = WaveForm::None;
             sw.start();
-        };
-
-        if (w != ctx.wave)
-        {
-            reset();
-        }
-
-        w = ctx.wave;
+        };        
 
         while (ctx.status == WaveStatus::Running)
         {
+            wl = 1.0f - ctx.freq_ratio;
+            wavelength = num::round_to_unsigned<u32>(min + wl * (max - min));
+
+            if (w != ctx.wave)
+            {
+                reset();
+            }
+
+            w = ctx.wave;
+
             switch (ctx.wave)
             {
             case WaveForm::Square:
-                generate_square_wave_fft(ctx, freq);
+                generate_square_wave_fft(ctx, wavelength);
                 break;
 
             default:

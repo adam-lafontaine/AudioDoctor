@@ -58,7 +58,17 @@ namespace internal
             plot_min, plot_max, 
             plot_size, 
             data_stride);
+
+        static f32 f;
+
+        f = ctx.freq_ratio;
+
+        ImGui::SliderFloat("Freq", &f, 0.0f, 1.0f);
+
+        ctx.freq_ratio = f;
     }
+
+
 }
 }
 
