@@ -2,11 +2,16 @@
 
 #include "../../../libs/imgui/imgui.h"
 #include "../../../libs/stb_libs/qsprintf.hpp"
+#include "../../../libs/util/numeric.hpp"
 #include "../wave/wave.hpp"
+
 
 
 namespace display
 {
+    namespace num = numeric;
+
+
 namespace internal
 {
     static void select_wave(wave::WaveContext& ctx)
@@ -66,6 +71,34 @@ namespace internal
         ImGui::SliderFloat("Freq", &f, 0.0f, 1.0f);
 
         ctx.freq_ratio = f;
+    }
+
+
+    static void plot_fft_bins(wave::WaveContext& ctx)
+    {
+        auto plot_data = ctx.fft_bins.data;
+        int data_count = ctx.fft_bins.length;
+        int data_offset = 0;
+
+        constexpr auto plot_min = 0.0f;
+        constexpr auto plot_size = ImVec2(0, 160.0f);
+        constexpr auto data_stride = sizeof(f32);
+
+        f32 plot_max = 0.0f;
+        for (int i = 0; i < data_count; i++)
+        {
+            plot_max = num::max(plot_max, plot_data[i]);
+        }
+
+        ImGui::PlotHistogram("FFT", 
+            plot_data,
+            data_count,
+            data_offset,
+            "",
+            plot_min, plot_max,
+            plot_size,
+            data_stride
+        );
     }
 
 
@@ -130,6 +163,7 @@ namespace display
 
         internal::select_wave(state.wave);
         internal::plot_samples(state.wave);
+        internal::plot_fft_bins(state.wave);
 
         ImGui::End();
     }
