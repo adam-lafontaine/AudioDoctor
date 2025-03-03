@@ -77,13 +77,27 @@ fft_c := $(fft)/fft.cpp
 #**********
 
 
+#*** wave ***
+
+wave := $(src)/wave
+
+wave_h := $(wave)/wave.hpp
+wave_h += $(types_h)
+
+wave_c := $(wave)/wave.cpp
+wave_c += $(fft_h)
+wave_c += $(stopwatch_h)
+
+#************
+
+
 #*** display ***
 
 display := $(src)/display
 
 display_h := $(display)/display.hpp
 display_h += $(qsprintf_h)
-display_h += $(mic_h)
+display_h += $(wave_h)
 
 #***************
 
@@ -101,6 +115,7 @@ main_dep += $(pltfm)/main_o.cpp
 main_dep += $(display_h)
 main_dep += $(stb_libs_c)
 main_dep += $(fft_c)
+main_dep += $(wave_c)
 
 #****************
 

@@ -8,7 +8,12 @@
 
 
 namespace wave
-{
+{    
+    static constexpr u32 FFT_EXP = 8;
+
+
+    using FFT = fft::FFT<FFT_EXP>;
+
 
     class WaveData
     {
@@ -17,8 +22,6 @@ namespace wave
         FFT fft;
 
         f32 sample_data[FFT::size];
-
-        bool running;
 
 
 
@@ -51,10 +54,6 @@ namespace wave
 
 namespace wave
 {
-    static constexpr u32 FFT_EXP = 8;
-
-
-    using FFT = fft::FFT<FFT_EXP>;
 
 
     static void cap_thread_ns(Stopwatch& sw, f64 target_ns)
@@ -114,9 +113,11 @@ namespace wave
             reset();
         }
 
-        while (data.running)
+        w = ctx.wave;
+
+        while (ctx.status == WaveStatus::Running)
         {
-            switch (w)
+            switch (ctx.wave)
             {
             case WaveForm::Square:
                 generate_square_wave_fft(ctx, freq);
@@ -136,6 +137,9 @@ namespace wave
 {
     bool init(WaveContext& ctx)
     {
+        ctx.status = WaveStatus::Closed;
+        ctx.wave = WaveForm::None;
+
         if (!create_data(ctx))
         {
             return false;
@@ -145,13 +149,16 @@ namespace wave
 
         data.fft.init();
 
-        data.running = false;
-
         ctx.fft_bins.data = data.fft.bins;
         ctx.fft_bins.length = data.fft.n_bins;
 
         ctx.samples.data = data.sample_data;
         ctx.samples.length = data.fft.size;
+        ctx.samples.zero();
+
+        ctx.status = WaveStatus::Open;
+
+        ctx.freq_ratio = 0.5f;
 
         return true;
     }
@@ -159,12 +166,17 @@ namespace wave
 
     void start(WaveContext& ctx)
     {
+        if (ctx.status != WaveStatus::Open)
+        {
+            return;
+        }
+        
         auto const proc = [&]()
         {
             wave_cb(ctx);
         };
 
-        get_data(ctx).running = true;
+        ctx.status = WaveStatus::Running;
 
         std::thread th(proc);
         th.detach();
@@ -173,7 +185,12 @@ namespace wave
 
     void pause(WaveContext& ctx)
     {
-        ctx.wave = WaveForm::None;
+        if (ctx.status != WaveStatus::Running)
+        {
+            return;
+        }
+
+        ctx.status = WaveStatus::Open;
     }
 
 
@@ -181,10 +198,14 @@ namespace wave
     {
         pause(ctx);
 
+        if (ctx.status != WaveStatus::Open)
+        {
+            return;
+        }
+
         auto& data = get_data(ctx);
-        data.running = false;
 
         WaveData::destroy(&data);
-        
+        ctx.status = WaveStatus::Closed;        
     }
 }

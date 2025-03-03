@@ -124,7 +124,10 @@ static bool main_init()
         return false;
     }
 
-    dsp::open(dsp_state);
+    if (!dsp::open(dsp_state))
+    {
+        return false;
+    }
 
     return true;
 }
