@@ -56,10 +56,7 @@ namespace internal
 
 
 namespace fft
-{   
-    //template <u32 N>
-
-
+{ 
     template <u32 B2EXP>
     class FFT
     {

@@ -2,7 +2,16 @@
 
 #include "../../../libs/imgui/imgui.h"
 #include "../../../libs/stb_libs/qsprintf.hpp"
-#include "../../../libs/util/numeric.hpp"
+
+
+
+namespace display
+{
+namespace internal
+{
+
+}
+}
 
 
 namespace display
@@ -21,6 +30,12 @@ namespace display
 
 
     void close(DisplayState& state)
+    {
+
+    }
+
+
+    void show_window(DisplayState& state)
     {
 
     }

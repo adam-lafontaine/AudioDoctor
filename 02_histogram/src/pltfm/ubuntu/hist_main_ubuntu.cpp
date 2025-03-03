@@ -107,7 +107,7 @@ static void render_imgui_frame()
     ui::show_imgui_demo(ui_state);
 #endif
 
-    //dsp::mic_window(dsp_state);
+    dsp::show_window(dsp_state);
 
     ui::render(ui_state);
 }
@@ -115,7 +115,7 @@ static void render_imgui_frame()
 
 static bool main_init()
 {
-    ui_state.window_title = "FFT Basic";
+    ui_state.window_title = "Histogram";
     ui_state.window_width = 500;
     ui_state.window_height = 500;
 

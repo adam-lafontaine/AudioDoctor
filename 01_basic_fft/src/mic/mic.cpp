@@ -20,7 +20,7 @@ namespace mic
     static constexpr u32 FFT_EXP = 8;
 
 
-    using FFT = fft::FFT<FFT_EXP>;    
+    using FFT = fft::FFT<FFT_EXP>;
 
 
     class StateData
