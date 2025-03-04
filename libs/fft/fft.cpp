@@ -29,6 +29,6 @@ namespace internal
 
     // TODO: f32 fft
 
-    #include "fftsg.c"
+    #include "fftsg_f32.cpp"
 }
 }
