@@ -86,6 +86,40 @@ namespace wave
     }
 
 
+    static void generate_sine_wave_fft(WaveContext& ctx, u32 wavelength)
+    {
+        auto& fft = get_data(ctx).fft;
+
+        auto f = 2.0f * num::PI / wavelength;
+        
+        for (u32 i = 0; i < fft.size; i++)
+        {
+            auto s = num::sin(num::rad_to_unsigned<uangle>(i * f));
+
+            ctx.samples.data[i] = s;
+            fft.buffer[i] = s;
+        }
+
+        fft.forward(fft.bins);
+    }
+
+
+    static void generate_zero_wave_fft(WaveContext& ctx)
+    {
+        auto& fft = get_data(ctx).fft;
+        
+        for (u32 i = 0; i < fft.size; i++)
+        {
+            auto s = 0.0f;
+
+            ctx.samples.data[i] = s;
+            fft.buffer[i] = s;
+        }
+
+        fft.forward(fft.bins);
+    }
+
+
     static void wave_cb(WaveContext& ctx)
     {
         constexpr auto N = FFT::size;
@@ -96,7 +130,7 @@ namespace wave
         auto& data = get_data(ctx);
 
         constexpr u32 min = 2u;
-        constexpr u32 max = N / 2;
+        constexpr u32 max = N / 2 - 1;
 
         u32 wavelength = 0;
         f32 wl = 0.0f;       
@@ -123,6 +157,14 @@ namespace wave
             {
             case WaveForm::Square:
                 generate_square_wave_fft(ctx, wavelength);
+                break;
+
+            case WaveForm::Sine:
+                generate_sine_wave_fft(ctx, wavelength);
+                break;
+
+            case WaveForm::None:
+                generate_zero_wave_fft(ctx);
                 break;
 
             default:
