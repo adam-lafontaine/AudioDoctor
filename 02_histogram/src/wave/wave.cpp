@@ -54,8 +54,6 @@ namespace wave
 
 namespace wave
 {
-
-
     static void cap_thread_ns(Stopwatch& sw, f64 target_ns)
     {
         constexpr f64 fudge = 0.9;
@@ -130,10 +128,10 @@ namespace wave
         auto& data = get_data(ctx);
 
         constexpr u32 min = 2u;
-        constexpr u32 max = N / 2 - 1;
+        constexpr u32 max = N / 2;
 
         u32 wavelength = 0;
-        f32 wl = 0.0f;       
+        f32 wl = 0.0f;
 
         auto const reset = [&]()
         {
@@ -171,7 +169,7 @@ namespace wave
                 break;
             }
 
-            cap_thread_ns(sw, 500.0);            
+            cap_thread_ns(sw, 500.0);
         }
     }
 }
