@@ -47,9 +47,9 @@ namespace internal
     }
 
 
-    void init_ip_w(u32 n, f64* buffer, i32* ip, f64* w);
+    void init_ip_w(u32 n, f32* buffer, i32* ip, f32* w);
 
-    void forward(u32 n, f64* buffer, i32* ip, f64* w, f32* bins);
+    void forward(u32 n, f32* buffer, i32* ip, f32* w, f32* bins);
 
 }
 }
@@ -66,10 +66,10 @@ namespace fft
         static constexpr u32 size = internal::fft_size(exp);
         static constexpr u32 n_bins = internal::fft_bin_size(size);
 
-        f64 buffer[size];
+        f32 buffer[size];
 
         i32 ip[internal::fft_ip_size(size)];
-        f64 w[internal::fft_w_size(size)];
+        f32 w[internal::fft_w_size(size)];
 
         f32 bins[n_bins];
 

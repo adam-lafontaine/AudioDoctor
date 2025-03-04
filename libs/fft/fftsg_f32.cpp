@@ -1,4 +1,4 @@
-using value_t = double;
+using value_t = float;
 
 /*
 Fast Fourier/Cosine/Sine Transform
@@ -640,7 +640,26 @@ void dfst(int n, value_t *a, value_t *t, int *ip, value_t *w)
 /* -------- initializing routines -------- */
 
 
-#include <math.h>
+#include <cmath>
+
+
+static inline value_t sin(value_t rad)
+{
+    return std::sin(rad);
+}
+
+
+static inline value_t cos(value_t rad)
+{
+    return std::cos(rad);
+}
+
+
+static inline value_t atan(value_t val)
+{
+    return std::atan(val);
+}
+
 
 void makewt(int nw, int *ip, value_t *w)
 {

@@ -88,11 +88,11 @@ namespace wave
     {
         auto& fft = get_data(ctx).fft;
 
-        auto f = 2.0f * num::PI / wavelength;
+        f32 f = 2.0f * num::PI / wavelength;
         
         for (u32 i = 0; i < fft.size; i++)
         {
-            auto s = num::sin(num::rad_to_unsigned<uangle>(i * f));
+            auto s = num::sin(i * f);
 
             ctx.samples.data[i] = s;
             fft.buffer[i] = s;
