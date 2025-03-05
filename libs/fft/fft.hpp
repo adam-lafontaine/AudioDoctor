@@ -74,8 +74,15 @@ namespace fft
         f32 bins[n_bins];
 
 
-        void init() { internal::init_ip_w(size, ip, w); for (u32 i = 0; i < n_bins; i++) { bins[i] = 0.0f; } }
+        void init() 
+        { 
+            static_assert(num::is_power_of_2(size));
+            static_assert(size >= 4);
 
-        void forward(f32* bins) { internal::forward(size, buffer, ip, w, bins); static_assert(size >= 4); }
+            internal::init_ip_w(size, ip, w); 
+            for (u32 i = 0; i < n_bins; i++) { bins[i] = 0.0f; } 
+        }
+
+        void forward(f32* bins) { internal::forward(size, buffer, ip, w, bins);  }
     };
 }

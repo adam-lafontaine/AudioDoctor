@@ -310,7 +310,7 @@ void rdft_forward(int n, value_t *a, int *ip, value_t *w)
 {
     assert(n >= 4);
     
-    void cftfsub(int n, value_t *a, int *ip, int nw, value_t *w);
+    void cftfsub_x(int n, value_t *a, int *ip, int nw, value_t *w);
     void rftfsub(int n, value_t *a, int nc, value_t *c);
     
     int nw, nc;
@@ -319,7 +319,7 @@ void rdft_forward(int n, value_t *a, int *ip, value_t *w)
     nw = ip[0];
     nc = ip[1];
 
-    cftfsub(n, a, ip, nw, w);
+    cftfsub_x(n, a, ip, nw, w);
     
     if (n > 4) 
     {        
@@ -330,6 +330,63 @@ void rdft_forward(int n, value_t *a, int *ip, value_t *w)
     a[0] += a[1];
     a[1] = xi;
     
+}
+
+
+void cftfsub_x(int n, value_t *a, int *ip, int nw, value_t *w)
+{
+    void bitrv2(int n, int *ip, value_t *a);
+    void bitrv216(value_t *a);
+    void bitrv208(value_t *a);
+    void cftf1st(int n, value_t *a, value_t *w);
+    void cftrec4(int n, value_t *a, int nw, value_t *w);
+    void cftleaf(int n, int isplt, value_t *a, int nw, value_t *w);
+    void cftfx41(int n, value_t *a, int nw, value_t *w);
+    void cftf161(value_t *a, value_t *w);
+    void cftf081(value_t *a, value_t *w);
+    void cftf040(value_t *a);
+    void cftx020(value_t *a);
+
+    switch (n)
+    {
+    case 4:
+        cftx020(a);
+        break;
+
+    case 8:
+        cftf040(a);
+        break;
+
+    case 16:
+        cftf081(a, w);
+        bitrv208(a);
+        break;
+
+    case 32:
+        cftf161(a, &w[nw - 8]);
+        bitrv216(a);
+        break;
+
+    case 64:
+    case 128:
+        cftf1st(n, a, &w[nw - (n >> 2)]);
+        cftfx41(n, a, nw, w);
+        bitrv2(n, ip, a);
+        break;
+
+    case 256:
+    case 512:
+        cftf1st(n, a, &w[nw - (n >> 2)]);
+        cftleaf(n, 1, a, nw, w);
+        bitrv2(n, ip, a);
+        break;
+
+    default:
+        cftf1st(n, a, &w[nw - (n >> 2)]);
+        cftrec4(n, a, nw, w);
+        bitrv2(n, ip, a);
+        break;
+    }
 }
 
 

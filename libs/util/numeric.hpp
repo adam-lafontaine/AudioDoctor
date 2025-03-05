@@ -669,7 +669,7 @@ namespace cxpr
     }
 
 
-    inline bool is_power_of_2(u64 num)
+    inline constexpr bool is_power_of_2(u64 num)
     {
         return (num && !(num & (num - 1)));
     }
