@@ -73,6 +73,7 @@ fft_h := $(fft)/fft.hpp
 fft_h += $(numeric_h)
 
 fft_c := $(fft)/fft.cpp
+fft_c += $(fft)/fftsg_f32.cpp
 
 #**********
 

@@ -15,6 +15,13 @@ namespace wave
     using FFT = fft::FFT<FFT_EXP>;
 
 
+    enum class CBStatus : int
+    {
+        Off = 0,
+        On
+    };
+
+
     class WaveData
     {
     public:
@@ -22,6 +29,8 @@ namespace wave
         FFT fft;
 
         f32 sample_data[FFT::size];
+
+        CBStatus cb_status;
 
 
 
@@ -39,9 +48,17 @@ namespace wave
             return false;
         }
 
+        data->cb_status = CBStatus::Off;
+
         ctx.handle = (u64)data;
 
         return true;
+    }
+
+
+    static void destroy_data(WaveContext& ctx)
+    {
+        WaveData::destroy((WaveData*)ctx.handle);
     }
 
 
@@ -88,11 +105,11 @@ namespace wave
     {
         auto& fft = get_data(ctx).fft;
 
-        auto f = 2.0f * num::PI / wavelength;
+        f32 f = 2.0f * num::PI / wavelength;
         
         for (u32 i = 0; i < fft.size; i++)
         {
-            auto s = num::sin(num::rad_to_unsigned<uangle>(i * f));
+            auto s = num::sin(i * f);
 
             ctx.samples.data[i] = s;
             fft.buffer[i] = s;
@@ -125,13 +142,15 @@ namespace wave
         static Stopwatch sw;
         static auto w = WaveForm::None;
 
-        auto& data = get_data(ctx);
-
         constexpr u32 min = 2u;
         constexpr u32 max = N / 2;
 
         u32 wavelength = 0;
         f32 wl = 0.0f;
+
+        auto& data = get_data(ctx);
+
+        data.cb_status = CBStatus::On;
 
         auto const reset = [&]()
         {
@@ -171,6 +190,8 @@ namespace wave
 
             cap_thread_ns(sw, 500.0);
         }
+
+        data.cb_status = CBStatus::Off;
     }
 }
 
@@ -227,7 +248,7 @@ namespace wave
 
     void pause(WaveContext& ctx)
     {
-        if (ctx.status != WaveStatus::Running)
+        if (ctx.status == WaveStatus::Closed)
         {
             return;
         }
@@ -247,7 +268,15 @@ namespace wave
 
         auto& data = get_data(ctx);
 
-        WaveData::destroy(&data);
-        ctx.status = WaveStatus::Closed;        
+        Stopwatch sw;
+        sw.start();
+
+        while (data.cb_status == CBStatus::On)
+        {
+            cap_thread_ns(sw, 20);
+        }
+
+        destroy_data(ctx);
+        ctx.status = WaveStatus::Closed;
     }
 }

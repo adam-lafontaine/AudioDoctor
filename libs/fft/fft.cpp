@@ -4,31 +4,31 @@ namespace fft
 {
 namespace internal
 {
-    // fftsg.c
-    // TODO: f32 fft
-    void rdft(int n, int isgn, double *a, int *ip, double *w);
+    // fftsg_f32.cpp
+    void rdft(int n, int isgn, f32* a, int* ip, f32* w);
+
+    void rdft_ip_w(int n, int* ip, f32* w);
+
+    void rdft_forward(int n, f32* a, int* ip, f32* w);
 
 
-    void init_ip_w(u32 n, f64* buffer, i32* ip, f64* w)
+    void init_ip_w(u32 n, i32* ip, f32* w)
     {
-        ip[0] = 0;
-        rdft((int)n, 1, buffer, ip, w);
+        rdft_ip_w((int)n, ip, w);
     }
 
 
-    void forward(u32 n, f64* buffer, i32* ip, f64* w, f32* bins)
+    void forward(u32 n, f32* buffer, i32* ip, f32* w, f32* bins)
     {
-        rdft((int)n, 1, buffer, ip, w);
+        rdft_forward((int)n, buffer, ip, w);
 
         u32 b = 0;
         for (u32 i = 2; i < n; i += 2)
         {
-            bins[b++] = num::hypot((f32)buffer[i], (f32)buffer[i + 1]);
+            bins[b++] = num::hypot(buffer[i], buffer[i + 1]);
         }
     }
 
-    // TODO: f32 fft
-
-    #include "fftsg.c"
+    #include "fftsg_f32.cpp"
 }
 }

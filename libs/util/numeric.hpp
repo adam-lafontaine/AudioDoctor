@@ -206,6 +206,21 @@ namespace cxpr
 
         return round_to_signed<i32>(value * f) * i_f;
     }
+
+
+    template <typename T>
+    inline constexpr T floor(T value)
+    { 
+        return (T)round_to_signed<i64>(value - 0.5f);
+    }
+
+
+    template <typename T>
+    inline constexpr T ceil(T value)
+    { 
+        auto f = floor(value);
+        return (T)(f + (f != value));
+    }
 }
 
     template <typename T>
@@ -280,6 +295,14 @@ namespace cxpr
     }
 
 
+    template <typename T>
+    inline T ceil(T value)
+    { 
+        auto f = floor(value);
+        return (T)(f + (f != value));
+    }
+
+
 namespace cxpr
 {
     template <typename T>
@@ -293,13 +316,6 @@ namespace cxpr
     inline constexpr T max(T a, T b)
     {
         return a > b ? a : b;
-    }
-
-
-    template <typename T>
-    inline constexpr T floor(T value)
-    { 
-        return (T)round_to_signed<i64>(value - 0.5f);
     }
 }
 
@@ -631,14 +647,13 @@ namespace cxpr
         static_assert(is_unsigned<uT>());
 
         constexpr f32 TP = (f32)(2 * PI);
-        constexpr f32 TP_I = (f32)1.0 / TP;
-
-        rad = rad < 0.0 ? rad + TP : rad;
-        rad = rad > TP ? rad - TP : rad;
-
         constexpr f32 max = max_angle_f32<uT>();
 
-        return round_to_unsigned<uT>(max * rad * TP_I);
+        auto n = rad / TP;
+        auto f = n - (i64)n;
+        f = f < 0.0f ? f + 1.0f : f;
+
+        return round_to_unsigned<uT>(max * f);
     }
 
 
@@ -654,7 +669,7 @@ namespace cxpr
     }
 
 
-    inline bool is_power_of_2(u64 num)
+    inline constexpr bool is_power_of_2(u64 num)
     {
         return (num && !(num & (num - 1)));
     }
@@ -694,6 +709,12 @@ namespace numeric
     }
 
 
+    inline f32 sin(f32 rad)
+    {
+        return sin(rad_to_unsigned<uangle>(rad));
+    }
+
+
     inline f32 cos(uangle a)
     {
         static_assert(sizeof(uangle) <= sizeof(u32));
@@ -720,6 +741,12 @@ namespace numeric
             case 7: return cos_approx(TP - rad);
             default: return 0.0f;
         }
+    }
+
+
+    inline f32 cos(f32 rad)
+    {
+        return cos(rad_to_unsigned<uangle>(rad));
     }
 
 
@@ -821,6 +848,12 @@ namespace cxpr
             case 7: return -sin_approx(TP - rad);
             default: return 0.0f;
         }
+    }    
+
+
+    inline f32 sin(f32 rad)
+    {
+        return sin(rad_to_unsigned<uangle>(rad));
     }
 
 
@@ -850,6 +883,12 @@ namespace cxpr
             case 7: return cos_approx(TP - rad);
             default: return 0.0f;
         }
+    }
+
+
+    inline f32 cos(f32 rad)
+    {
+        return cos(rad_to_unsigned<uangle>(rad));
     }
 
 
