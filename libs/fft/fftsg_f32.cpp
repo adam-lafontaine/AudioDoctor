@@ -1,4 +1,4 @@
-using value_t = double;
+using value_t = float;
 
 /*
 Fast Fourier/Cosine/Sine Transform

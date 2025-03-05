@@ -269,6 +269,7 @@ namespace wave
         auto& data = get_data(ctx);
 
         Stopwatch sw;
+        sw.start();
 
         while (data.cb_status == CBStatus::On)
         {
