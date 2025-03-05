@@ -1,4 +1,4 @@
-using value_t = float;
+using value_t = double;
 
 /*
 Fast Fourier/Cosine/Sine Transform
@@ -282,6 +282,58 @@ Appendix :
     The cos/sin table is recalculated when the larger table required.
     w[] and ip[] are compatible with all routines.
 */
+
+// ******* "Optimized" implementation *******
+
+
+void rdft_ip_w(int n, int *ip, value_t *w)
+{
+    void makewt(int nw, int *ip, value_t *w);
+    void makect(int nc, int *ip, value_t *c);
+    int nw, nc;
+
+    ip[0] = 0;
+
+    nw = n >> 2;
+    makewt(nw, ip, w);
+
+    nc = ip[1];
+    if (n > (nc << 2)) 
+    {
+        nc = n >> 2;
+        makect(nc, ip, w + nw);
+    }
+}
+
+
+void rdft_forward(int n, value_t *a, int *ip, value_t *w)
+{
+    assert(n >= 4);
+    
+    void cftfsub(int n, value_t *a, int *ip, int nw, value_t *w);
+    void rftfsub(int n, value_t *a, int nc, value_t *c);
+    
+    int nw, nc;
+    value_t xi;
+    
+    nw = ip[0];
+    nc = ip[1];
+
+    cftfsub(n, a, ip, nw, w);
+    
+    if (n > 4) 
+    {        
+        rftfsub(n, a, nc, w + nw);
+    }
+
+    xi = a[0] - a[1];
+    a[0] += a[1];
+    a[1] = xi;
+    
+}
+
+
+// *******************************************
 
 
 void cdft(int n, int isgn, value_t *a, int *ip, value_t *w)
