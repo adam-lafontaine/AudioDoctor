@@ -912,60 +912,6 @@ void makect(int nc, int *ip, f32 *c)
 /* -------- child routines -------- */
 
 
-#ifdef USE_CDFT_PTHREADS
-#define USE_CDFT_THREADS
-#ifndef CDFT_THREADS_BEGIN_N
-#define CDFT_THREADS_BEGIN_N 8192
-#endif
-#ifndef CDFT_4THREADS_BEGIN_N
-#define CDFT_4THREADS_BEGIN_N 65536
-#endif
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#define cdft_thread_t pthread_t
-#define cdft_thread_create(thp,func,argp) { \
-    if (pthread_create(thp, NULL, func, (void *) argp) != 0) { \
-        fprintf(stderr, "cdft thread error\n"); \
-        exit(1); \
-    } \
-}
-#define cdft_thread_wait(th) { \
-    if (pthread_join(th, NULL) != 0) { \
-        fprintf(stderr, "cdft thread error\n"); \
-        exit(1); \
-    } \
-}
-#endif /* USE_CDFT_PTHREADS */
-
-
-#ifdef USE_CDFT_WINTHREADS
-#define USE_CDFT_THREADS
-#ifndef CDFT_THREADS_BEGIN_N
-#define CDFT_THREADS_BEGIN_N 32768
-#endif
-#ifndef CDFT_4THREADS_BEGIN_N
-#define CDFT_4THREADS_BEGIN_N 524288
-#endif
-#include <windows.h>
-#include <stdio.h>
-#include <stdlib.h>
-#define cdft_thread_t HANDLE
-#define cdft_thread_create(thp,func,argp) { \
-    DWORD thid; \
-    *(thp) = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) func, (LPVOID) argp, 0, &thid); \
-    if (*(thp) == 0) { \
-        fprintf(stderr, "cdft thread error\n"); \
-        exit(1); \
-    } \
-}
-#define cdft_thread_wait(th) { \
-    WaitForSingleObject(th, INFINITE); \
-    CloseHandle(th); \
-}
-#endif /* USE_CDFT_WINTHREADS */
-
-
 void cftfsub(int n, f32 *a, int *ip, int nw, f32 *w)
 {
     void bitrv2(int n, int *ip, f32 *a);
@@ -979,18 +925,11 @@ void cftfsub(int n, f32 *a, int *ip, int nw, f32 *w)
     void cftf081(f32 *a, f32 *w);
     void cftf040(f32 *a);
     void cftx020(f32 *a);
-#ifdef USE_CDFT_THREADS
-    void cftrec4_th(int n, f32 *a, int nw, f32 *w);
-#endif /* USE_CDFT_THREADS */
     
     if (n > 8) {
         if (n > 32) {
             cftf1st(n, a, &w[nw - (n >> 2)]);
-#ifdef USE_CDFT_THREADS
-            if (n > CDFT_THREADS_BEGIN_N) {
-                cftrec4_th(n, a, nw, w);
-            } else 
-#endif /* USE_CDFT_THREADS */
+            
             if (n > 512) {
                 cftrec4(n, a, nw, w);
             } else if (n > 128) {
@@ -1027,18 +966,11 @@ void cftbsub(int n, f32 *a, int *ip, int nw, f32 *w)
     void cftf081(f32 *a, f32 *w);
     void cftb040(f32 *a);
     void cftx020(f32 *a);
-#ifdef USE_CDFT_THREADS
-    void cftrec4_th(int n, f32 *a, int nw, f32 *w);
-#endif /* USE_CDFT_THREADS */
     
     if (n > 8) {
         if (n > 32) {
             cftb1st(n, a, &w[nw - (n >> 2)]);
-#ifdef USE_CDFT_THREADS
-            if (n > CDFT_THREADS_BEGIN_N) {
-                cftrec4_th(n, a, nw, w);
-            } else 
-#endif /* USE_CDFT_THREADS */
+            
             if (n > 512) {
                 cftrec4(n, a, nw, w);
             } else if (n > 128) {
@@ -2360,112 +2292,6 @@ void cftb1st(int n, f32 *a, f32 *w)
     a[j3 + 2] = wk3i * x0r + wk3r * x0i;
     a[j3 + 3] = wk3i * x0i - wk3r * x0r;
 }
-
-
-#ifdef USE_CDFT_THREADS
-struct cdft_arg_st {
-    int n0;
-    int n;
-    f32 *a;
-    int nw;
-    f32 *w;
-};
-typedef struct cdft_arg_st cdft_arg_t;
-
-
-void cftrec4_th(int n, f32 *a, int nw, f32 *w)
-{
-    void *cftrec1_th(void *p);
-    void *cftrec2_th(void *p);
-    int i, idiv4, m, nthread;
-    cdft_thread_t th[4];
-    cdft_arg_t ag[4];
-    
-    nthread = 2;
-    idiv4 = 0;
-    m = n >> 1;
-    if (n > CDFT_4THREADS_BEGIN_N) {
-        nthread = 4;
-        idiv4 = 1;
-        m >>= 1;
-    }
-    for (i = 0; i < nthread; i++) {
-        ag[i].n0 = n;
-        ag[i].n = m;
-        ag[i].a = &a[i * m];
-        ag[i].nw = nw;
-        ag[i].w = w;
-        if (i != idiv4) {
-            cdft_thread_create(&th[i], cftrec1_th, &ag[i]);
-        } else {
-            cdft_thread_create(&th[i], cftrec2_th, &ag[i]);
-        }
-    }
-    for (i = 0; i < nthread; i++) {
-        cdft_thread_wait(th[i]);
-    }
-}
-
-
-void *cftrec1_th(void *p)
-{
-    int cfttree(int n, int j, int k, f32 *a, int nw, f32 *w);
-    void cftleaf(int n, int isplt, f32 *a, int nw, f32 *w);
-    void cftmdl1(int n, f32 *a, f32 *w);
-    int isplt, j, k, m, n, n0, nw;
-    f32 *a, *w;
-    
-    n0 = ((cdft_arg_t *) p)->n0;
-    n = ((cdft_arg_t *) p)->n;
-    a = ((cdft_arg_t *) p)->a;
-    nw = ((cdft_arg_t *) p)->nw;
-    w = ((cdft_arg_t *) p)->w;
-    m = n0;
-    while (m > 512) {
-        m >>= 2;
-        cftmdl1(m, &a[n - m], &w[nw - (m >> 1)]);
-    }
-    cftleaf(m, 1, &a[n - m], nw, w);
-    k = 0;
-    for (j = n - m; j > 0; j -= m) {
-        k++;
-        isplt = cfttree(m, j, k, a, nw, w);
-        cftleaf(m, isplt, &a[j - m], nw, w);
-    }
-    return (void *) 0;
-}
-
-
-void *cftrec2_th(void *p)
-{
-    int cfttree(int n, int j, int k, f32 *a, int nw, f32 *w);
-    void cftleaf(int n, int isplt, f32 *a, int nw, f32 *w);
-    void cftmdl2(int n, f32 *a, f32 *w);
-    int isplt, j, k, m, n, n0, nw;
-    f32 *a, *w;
-    
-    n0 = ((cdft_arg_t *) p)->n0;
-    n = ((cdft_arg_t *) p)->n;
-    a = ((cdft_arg_t *) p)->a;
-    nw = ((cdft_arg_t *) p)->nw;
-    w = ((cdft_arg_t *) p)->w;
-    k = 1;
-    m = n0;
-    while (m > 512) {
-        m >>= 2;
-        k <<= 2;
-        cftmdl2(m, &a[n - m], &w[nw - m]);
-    }
-    cftleaf(m, 0, &a[n - m], nw, w);
-    k >>= 1;
-    for (j = n - m; j > 0; j -= m) {
-        k++;
-        isplt = cfttree(m, j, k, a, nw, w);
-        cftleaf(m, isplt, &a[j - m], nw, w);
-    }
-    return (void *) 0;
-}
-#endif /* USE_CDFT_THREADS */
 
 
 void cftrec4(int n, f32 *a, int nw, f32 *w)
