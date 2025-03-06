@@ -393,6 +393,9 @@ void cftfsub_x(int n, f32 *a, int *ip, int nw, f32 *w)
 // *******************************************
 
 
+// ******* original api ***********
+/*
+
 void cdft(int n, int isgn, f32 *a, int *ip, f32 *w)
 {
     void makewt(int nw, int *ip, f32 *w);
@@ -744,6 +747,8 @@ void dfst(int n, f32 *a, f32 *t, int *ip, f32 *w)
     }
     a[0] = 0;
 }
+
+*/
 
 
 /* -------- initializing routines -------- */
