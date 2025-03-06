@@ -11,6 +11,8 @@ namespace internal
 
     void rdft_forward(int n, f32* a, int* ip, f32* w);
 
+    void rdft_inverse(int n, f32 *a, int *ip, f32 *w);
+
 
     void init_ip_w(u32 n, i32* ip, f32* w)
     {
@@ -27,6 +29,12 @@ namespace internal
         {
             bins[b++] = num::hypot(buffer[i], buffer[i + 1]);
         }
+    }
+
+
+    void inverse(u32 n, f32* buffer, i32* ip, f32* w)
+    {
+        rdft_inverse((int)n, buffer, ip, w);
     }
 
     #include "fftsg_f32.cpp"

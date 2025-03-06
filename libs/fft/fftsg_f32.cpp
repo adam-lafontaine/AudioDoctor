@@ -330,8 +330,26 @@ void rdft_forward(int n, f32 *a, int *ip, f32 *w)
 
     xi = a[0] - a[1];
     a[0] += a[1];
-    a[1] = xi;
-    
+    a[1] = xi;    
+}
+
+
+void rdft_inverse(int n, f32 *a, int *ip, f32 *w)
+{
+    void cftbsub_x(int n, f32 *a, int *ip, int nw, f32 *w);
+    void rftbsub(int n, f32 *a, int nc, f32 *c);
+    int nw, nc;
+    f32 xi;
+
+    a[1] = 0.5 * (a[0] - a[1]);
+    a[0] -= a[1];
+
+    if (n > 4) 
+    {
+        rftbsub(n, a, nc, w + nw);
+    }
+
+    cftbsub_x(n, a, ip, nw, w);
 }
 
 
@@ -387,6 +405,63 @@ void cftfsub_x(int n, f32 *a, int *ip, int nw, f32 *w)
         cftf1st(n, a, &w[nw - (n >> 2)]);
         cftrec4(n, a, nw, w);
         bitrv2(n, ip, a);
+        break;
+    }
+}
+
+
+void cftbsub_x(int n, f32 *a, int *ip, int nw, f32 *w)
+{
+    void bitrv2conj(int n, int *ip, f32 *a);
+    void bitrv216neg(f32 *a);
+    void bitrv208neg(f32 *a);
+    void cftb1st(int n, f32 *a, f32 *w);
+    void cftrec4(int n, f32 *a, int nw, f32 *w);
+    void cftleaf(int n, int isplt, f32 *a, int nw, f32 *w);
+    void cftfx41(int n, f32 *a, int nw, f32 *w);
+    void cftf161(f32 *a, f32 *w);
+    void cftf081(f32 *a, f32 *w);
+    void cftb040(f32 *a);
+    void cftx020(f32 *a);
+
+    switch (n)
+    {
+        case 4:
+        cftx020(a);
+        break;
+
+    case 8:
+        cftb040(a);
+        break;
+
+    case 16:
+        cftf081(a, w);
+        bitrv208neg(a);
+        break;
+
+    case 32:
+        cftf161(a, &w[nw - 8]);
+        bitrv216neg(a);
+        break;
+
+    case 64:
+    case 128:
+        cftb1st(n, a, &w[nw - (n >> 2)]);
+        cftfx41(n, a, nw, w);
+        bitrv2conj(n, ip, a);
+        break;
+
+    case 256:
+    case 512:
+        cftb1st(n, a, &w[nw - (n >> 2)]);
+        cftleaf(n, 1, a, nw, w);
+        bitrv2conj(n, ip, a);
+        break;
+
+    default:
+        cftb1st(n, a, &w[nw - (n >> 2)]);
+        cftrec4(n, a, nw, w);
+        bitrv2conj(n, ip, a);
         break;
     }
 }
@@ -911,7 +986,7 @@ void makect(int nc, int *ip, f32 *c)
 
 /* -------- child routines -------- */
 
-
+/*
 void cftfsub(int n, f32 *a, int *ip, int nw, f32 *w)
 {
     void bitrv2(int n, int *ip, f32 *a);
@@ -993,6 +1068,7 @@ void cftbsub(int n, f32 *a, int *ip, int nw, f32 *w)
     }
 }
 
+*/
 
 void bitrv2(int n, int *ip, f32 *a)
 {
