@@ -709,12 +709,6 @@ namespace numeric
     }
 
 
-    inline f32 sin(f32 rad)
-    {
-        return sin(rad_to_unsigned<uangle>(rad));
-    }
-
-
     inline f32 cos(uangle a)
     {
         static_assert(sizeof(uangle) <= sizeof(u32));
@@ -741,6 +735,12 @@ namespace numeric
             case 7: return cos_approx(TP - rad);
             default: return 0.0f;
         }
+    }
+
+
+    inline f32 sin(f32 rad)
+    {
+        return sin(rad_to_unsigned<uangle>(rad));
     }
 
 
@@ -848,13 +848,7 @@ namespace cxpr
             case 7: return -sin_approx(TP - rad);
             default: return 0.0f;
         }
-    }    
-
-
-    inline f32 sin(f32 rad)
-    {
-        return sin(rad_to_unsigned<uangle>(rad));
-    }
+    } 
 
 
     inline constexpr f32 cos(uangle a)
@@ -883,10 +877,16 @@ namespace cxpr
             case 7: return cos_approx(TP - rad);
             default: return 0.0f;
         }
+    }   
+
+
+    inline constexpr f32 sin(f32 rad)
+    {
+        return sin(rad_to_unsigned<uangle>(rad));
     }
 
 
-    inline f32 cos(f32 rad)
+    inline constexpr f32 cos(f32 rad)
     {
         return cos(rad_to_unsigned<uangle>(rad));
     }

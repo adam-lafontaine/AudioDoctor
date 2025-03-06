@@ -5,7 +5,7 @@ namespace fft
 namespace internal
 {
     // fftsg_f32.cpp
-    void rdft(int n, int isgn, f32* a, int* ip, f32* w);
+    //void rdft(int n, int isgn, f32* a, int* ip, f32* w);
 
     void rdft_ip_w(int n, int* ip, f32* w);
 

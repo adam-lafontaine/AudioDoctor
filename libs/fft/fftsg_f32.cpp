@@ -1,5 +1,7 @@
 using f32 = float;
 
+#define FFT_UTIL_NUMERIC
+
 /*
 Fast Fourier/Cosine/Sine Transform
     dimension   :one
@@ -754,6 +756,36 @@ void dfst(int n, f32 *a, f32 *t, int *ip, f32 *w)
 /* -------- initializing routines -------- */
 
 
+#ifdef FFT_UTIL_NUMERIC
+
+#include "../util/numeric.hpp"
+
+namespace num = numeric;
+
+
+static inline f32 sin(f32 rad)
+{
+    return num::sin(rad);
+}
+
+
+static inline f32 cos(f32 rad)
+{
+    return num::cos(rad);
+}
+
+
+static constexpr inline f32 atan(f32 val)
+{
+    assert(val == 1.0f); // only atan(1.0) is used
+
+    return (f32)(num::PI / 4);
+}
+
+
+#else
+
+
 #include <cmath>
 
 
@@ -773,6 +805,8 @@ static inline f32 atan(f32 val)
 {
     return std::atan(val);
 }
+
+#endif
 
 
 void makewt(int nw, int *ip, f32 *w)
