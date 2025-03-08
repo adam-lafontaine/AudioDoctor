@@ -2,296 +2,16 @@ using f32 = float;
 
 #define FFT_UTIL_NUMERIC
 
-/*
-Fast Fourier/Cosine/Sine Transform
-    dimension   :one
-    data length :power of 2
-    decimation  :frequency
-    radix       :split-radix
-    data        :inplace
-    table       :use
-functions
-    cdft: Complex Discrete Fourier Transform
-    rdft: Real Discrete Fourier Transform
-    ddct: Discrete Cosine Transform
-    ddst: Discrete Sine Transform
-    dfct: Cosine Transform of RDFT (Real Symmetric DFT)
-    dfst: Sine Transform of RDFT (Real Anti-symmetric DFT)
-function prototypes
-    void cdft(int, int, f32 *, int *, f32 *);
-    void rdft(int, int, f32 *, int *, f32 *);
-    void ddct(int, int, f32 *, int *, f32 *);
-    void ddst(int, int, f32 *, int *, f32 *);
-    void dfct(int, f32 *, f32 *, int *, f32 *);
-    void dfst(int, f32 *, f32 *, int *, f32 *);
-macro definitions
-    USE_CDFT_PTHREADS : default=not defined
-        CDFT_THREADS_BEGIN_N  : must be >= 512, default=8192
-        CDFT_4THREADS_BEGIN_N : must be >= 512, default=65536
-    USE_CDFT_WINTHREADS : default=not defined
-        CDFT_THREADS_BEGIN_N  : must be >= 512, default=32768
-        CDFT_4THREADS_BEGIN_N : must be >= 512, default=524288
+// temp
 
-
--------- Complex DFT (Discrete Fourier Transform) --------
-    [definition]
-        <case1>
-            X[k] = sum_j=0^n-1 x[j]*exp(2*pi*i*j*k/n), 0<=k<n
-        <case2>
-            X[k] = sum_j=0^n-1 x[j]*exp(-2*pi*i*j*k/n), 0<=k<n
-        (notes: sum_j=0^n-1 is a summation from j=0 to n-1)
-    [usage]
-        <case1>
-            ip[0] = 0; // first time only
-            cdft(2*n, 1, a, ip, w);
-        <case2>
-            ip[0] = 0; // first time only
-            cdft(2*n, -1, a, ip, w);
-    [parameters]
-        2*n            :data length (int)
-                        n >= 1, n = power of 2
-        a[0...2*n-1]   :input/output data (f32 *)
-                        input data
-                            a[2*j] = Re(x[j]), 
-                            a[2*j+1] = Im(x[j]), 0<=j<n
-                        output data
-                            a[2*k] = Re(X[k]), 
-                            a[2*k+1] = Im(X[k]), 0<=k<n
-        ip[0...*]      :work area for bit reversal (int *)
-                        length of ip >= 2+sqrt(n)
-                        strictly, 
-                        length of ip >= 
-                            2+(1<<(int)(log(n+0.5)/log(2))/2).
-                        ip[0],ip[1] are pointers of the cos/sin table.
-        w[0...n/2-1]   :cos/sin table (f32 *)
-                        w[],ip[] are initialized if ip[0] == 0.
-    [remark]
-        Inverse of 
-            cdft(2*n, -1, a, ip, w);
-        is 
-            cdft(2*n, 1, a, ip, w);
-            for (j = 0; j <= 2 * n - 1; j++) {
-                a[j] *= 1.0 / n;
-            }
-        .
-
-
--------- Real DFT / Inverse of Real DFT --------
-    [definition]
-        <case1> RDFT
-            R[k] = sum_j=0^n-1 a[j]*cos(2*pi*j*k/n), 0<=k<=n/2
-            I[k] = sum_j=0^n-1 a[j]*sin(2*pi*j*k/n), 0<k<n/2
-        <case2> IRDFT (excluding scale)
-            a[k] = (R[0] + R[n/2]*cos(pi*k))/2 + 
-                   sum_j=1^n/2-1 R[j]*cos(2*pi*j*k/n) + 
-                   sum_j=1^n/2-1 I[j]*sin(2*pi*j*k/n), 0<=k<n
-    [usage]
-        <case1>
-            ip[0] = 0; // first time only
-            rdft(n, 1, a, ip, w);
-        <case2>
-            ip[0] = 0; // first time only
-            rdft(n, -1, a, ip, w);
-    [parameters]
-        n              :data length (int)
-                        n >= 2, n = power of 2
-        a[0...n-1]     :input/output data (f32 *)
-                        <case1>
-                            output data
-                                a[2*k] = R[k], 0<=k<n/2
-                                a[2*k+1] = I[k], 0<k<n/2
-                                a[1] = R[n/2]
-                        <case2>
-                            input data
-                                a[2*j] = R[j], 0<=j<n/2
-                                a[2*j+1] = I[j], 0<j<n/2
-                                a[1] = R[n/2]
-        ip[0...*]      :work area for bit reversal (int *)
-                        length of ip >= 2+sqrt(n/2)
-                        strictly, 
-                        length of ip >= 
-                            2+(1<<(int)(log(n/2+0.5)/log(2))/2).
-                        ip[0],ip[1] are pointers of the cos/sin table.
-        w[0...n/2-1]   :cos/sin table (f32 *)
-                        w[],ip[] are initialized if ip[0] == 0.
-    [remark]
-        Inverse of 
-            rdft(n, 1, a, ip, w);
-        is 
-            rdft(n, -1, a, ip, w);
-            for (j = 0; j <= n - 1; j++) {
-                a[j] *= 2.0 / n;
-            }
-        .
-
-
--------- DCT (Discrete Cosine Transform) / Inverse of DCT --------
-    [definition]
-        <case1> IDCT (excluding scale)
-            C[k] = sum_j=0^n-1 a[j]*cos(pi*j*(k+1/2)/n), 0<=k<n
-        <case2> DCT
-            C[k] = sum_j=0^n-1 a[j]*cos(pi*(j+1/2)*k/n), 0<=k<n
-    [usage]
-        <case1>
-            ip[0] = 0; // first time only
-            ddct(n, 1, a, ip, w);
-        <case2>
-            ip[0] = 0; // first time only
-            ddct(n, -1, a, ip, w);
-    [parameters]
-        n              :data length (int)
-                        n >= 2, n = power of 2
-        a[0...n-1]     :input/output data (f32 *)
-                        output data
-                            a[k] = C[k], 0<=k<n
-        ip[0...*]      :work area for bit reversal (int *)
-                        length of ip >= 2+sqrt(n/2)
-                        strictly, 
-                        length of ip >= 
-                            2+(1<<(int)(log(n/2+0.5)/log(2))/2).
-                        ip[0],ip[1] are pointers of the cos/sin table.
-        w[0...n*5/4-1] :cos/sin table (f32 *)
-                        w[],ip[] are initialized if ip[0] == 0.
-    [remark]
-        Inverse of 
-            ddct(n, -1, a, ip, w);
-        is 
-            a[0] *= 0.5;
-            ddct(n, 1, a, ip, w);
-            for (j = 0; j <= n - 1; j++) {
-                a[j] *= 2.0 / n;
-            }
-        .
-
-
--------- DST (Discrete Sine Transform) / Inverse of DST --------
-    [definition]
-        <case1> IDST (excluding scale)
-            S[k] = sum_j=1^n A[j]*sin(pi*j*(k+1/2)/n), 0<=k<n
-        <case2> DST
-            S[k] = sum_j=0^n-1 a[j]*sin(pi*(j+1/2)*k/n), 0<k<=n
-    [usage]
-        <case1>
-            ip[0] = 0; // first time only
-            ddst(n, 1, a, ip, w);
-        <case2>
-            ip[0] = 0; // first time only
-            ddst(n, -1, a, ip, w);
-    [parameters]
-        n              :data length (int)
-                        n >= 2, n = power of 2
-        a[0...n-1]     :input/output data (f32 *)
-                        <case1>
-                            input data
-                                a[j] = A[j], 0<j<n
-                                a[0] = A[n]
-                            output data
-                                a[k] = S[k], 0<=k<n
-                        <case2>
-                            output data
-                                a[k] = S[k], 0<k<n
-                                a[0] = S[n]
-        ip[0...*]      :work area for bit reversal (int *)
-                        length of ip >= 2+sqrt(n/2)
-                        strictly, 
-                        length of ip >= 
-                            2+(1<<(int)(log(n/2+0.5)/log(2))/2).
-                        ip[0],ip[1] are pointers of the cos/sin table.
-        w[0...n*5/4-1] :cos/sin table (f32 *)
-                        w[],ip[] are initialized if ip[0] == 0.
-    [remark]
-        Inverse of 
-            ddst(n, -1, a, ip, w);
-        is 
-            a[0] *= 0.5;
-            ddst(n, 1, a, ip, w);
-            for (j = 0; j <= n - 1; j++) {
-                a[j] *= 2.0 / n;
-            }
-        .
-
-
--------- Cosine Transform of RDFT (Real Symmetric DFT) --------
-    [definition]
-        C[k] = sum_j=0^n a[j]*cos(pi*j*k/n), 0<=k<=n
-    [usage]
-        ip[0] = 0; // first time only
-        dfct(n, a, t, ip, w);
-    [parameters]
-        n              :data length - 1 (int)
-                        n >= 2, n = power of 2
-        a[0...n]       :input/output data (f32 *)
-                        output data
-                            a[k] = C[k], 0<=k<=n
-        t[0...n/2]     :work area (f32 *)
-        ip[0...*]      :work area for bit reversal (int *)
-                        length of ip >= 2+sqrt(n/4)
-                        strictly, 
-                        length of ip >= 
-                            2+(1<<(int)(log(n/4+0.5)/log(2))/2).
-                        ip[0],ip[1] are pointers of the cos/sin table.
-        w[0...n*5/8-1] :cos/sin table (f32 *)
-                        w[],ip[] are initialized if ip[0] == 0.
-    [remark]
-        Inverse of 
-            a[0] *= 0.5;
-            a[n] *= 0.5;
-            dfct(n, a, t, ip, w);
-        is 
-            a[0] *= 0.5;
-            a[n] *= 0.5;
-            dfct(n, a, t, ip, w);
-            for (j = 0; j <= n; j++) {
-                a[j] *= 2.0 / n;
-            }
-        .
-
-
--------- Sine Transform of RDFT (Real Anti-symmetric DFT) --------
-    [definition]
-        S[k] = sum_j=1^n-1 a[j]*sin(pi*j*k/n), 0<k<n
-    [usage]
-        ip[0] = 0; // first time only
-        dfst(n, a, t, ip, w);
-    [parameters]
-        n              :data length + 1 (int)
-                        n >= 2, n = power of 2
-        a[0...n-1]     :input/output data (f32 *)
-                        output data
-                            a[k] = S[k], 0<k<n
-                        (a[0] is used for work area)
-        t[0...n/2-1]   :work area (f32 *)
-        ip[0...*]      :work area for bit reversal (int *)
-                        length of ip >= 2+sqrt(n/4)
-                        strictly, 
-                        length of ip >= 
-                            2+(1<<(int)(log(n/4+0.5)/log(2))/2).
-                        ip[0],ip[1] are pointers of the cos/sin table.
-        w[0...n*5/8-1] :cos/sin table (f32 *)
-                        w[],ip[] are initialized if ip[0] == 0.
-    [remark]
-        Inverse of 
-            dfst(n, a, t, ip, w);
-        is 
-            dfst(n, a, t, ip, w);
-            for (j = 1; j <= n - 1; j++) {
-                a[j] *= 2.0 / n;
-            }
-        .
-
-
-Appendix :
-    The cos/sin table is recalculated when the larger table required.
-    w[] and ip[] are compatible with all routines.
-*/
 
 // ******* "Optimized" implementation *******
 
 
-void rdft_ip_w(int n, int *ip, f32 *w)
+void rdft_ip_w(int n, int* ip, f32* w)
 {
-    void makewt(int nw, int *ip, f32 *w);
-    void makect(int nc, int *ip, f32 *c);
+    void makewt(int nw, int *ip, f32* w);
+    void makect(int nc, int *ip, f32* c);
     int nw, nc;
 
     ip[0] = 0;
@@ -308,12 +28,10 @@ void rdft_ip_w(int n, int *ip, f32 *w)
 }
 
 
-void rdft_forward(int n, f32 *a, int *ip, f32 *w)
+void rdft_forward_1024(int n, f32* a, int* ip, f32* w)
 {
-    assert(n >= 4);
-    
-    void cftfsub_x(int n, f32 *a, int *ip, int nw, f32 *w);
-    void rftfsub(int n, f32 *a, int nc, f32 *c);
+    void cftfsub_1024(int n, f32* a, int *ip, int nw, f32* w);
+    void rftfsub(int n, f32* a, int nc, f32* c);
     
     int nw, nc;
     f32 xi;
@@ -321,511 +39,56 @@ void rdft_forward(int n, f32 *a, int *ip, f32 *w)
     nw = ip[0];
     nc = ip[1];
 
-    cftfsub_x(n, a, ip, nw, w);
+    cftfsub_1024(n, a, ip, nw, w);
     
-    if (n > 4) 
-    {        
-        rftfsub(n, a, nc, w + nw);
-    }
+    rftfsub(n, a, nc, w + nw);
 
     xi = a[0] - a[1];
     a[0] += a[1];
-    a[1] = xi;    
+    a[1] = xi;
 }
 
 
-void rdft_inverse(int n, f32 *a, int *ip, f32 *w)
+void rdft_inverse_1024(int n, f32* a, int* ip, f32* w)
 {
-    void cftbsub_x(int n, f32 *a, int *ip, int nw, f32 *w);
-    void rftbsub(int n, f32 *a, int nc, f32 *c);
+    void cftbsub_1024(int n, f32* a, int *ip, int nw, f32* w);
+    void rftbsub(int n, f32* a, int nc, f32* c);
     int nw, nc;
     f32 xi;
 
     a[1] = 0.5 * (a[0] - a[1]);
     a[0] -= a[1];
 
-    if (n > 4) 
-    {
-        rftbsub(n, a, nc, w + nw);
-    }
-
-    cftbsub_x(n, a, ip, nw, w);
+    rftbsub(n, a, nc, w + nw);
+    cftbsub_1024(n, a, ip, nw, w);
 }
 
 
-void cftfsub_x(int n, f32 *a, int *ip, int nw, f32 *w)
+void cftfsub_1024(int n, f32* a, int *ip, int nw, f32* w)
 {
-    void bitrv2(int n, int *ip, f32 *a);
-    void bitrv216(f32 *a);
-    void bitrv208(f32 *a);
-    void cftf1st(int n, f32 *a, f32 *w);
-    void cftrec4(int n, f32 *a, int nw, f32 *w);
-    void cftleaf(int n, int isplt, f32 *a, int nw, f32 *w);
-    void cftfx41(int n, f32 *a, int nw, f32 *w);
-    void cftf161(f32 *a, f32 *w);
-    void cftf081(f32 *a, f32 *w);
-    void cftf040(f32 *a);
-    void cftx020(f32 *a);
+    void bitrv2(int n, int *ip, f32* a);
+    void cftf1st(int n, f32* a, f32* w);
+    void cftrec4(int n, f32* a, int nw, f32* w);
 
-    switch (n)
-    {
-    case 4:
-        cftx020(a);
-        break;
-
-    case 8:
-        cftf040(a);
-        break;
-
-    case 16:
-        cftf081(a, w);
-        bitrv208(a);
-        break;
-
-    case 32:
-        cftf161(a, &w[nw - 8]);
-        bitrv216(a);
-        break;
-
-    case 64:
-    case 128:
-        cftf1st(n, a, &w[nw - (n >> 2)]);
-        cftfx41(n, a, nw, w);
-        bitrv2(n, ip, a);
-        break;
-
-    case 256:
-    case 512:
-        cftf1st(n, a, &w[nw - (n >> 2)]);
-        cftleaf(n, 1, a, nw, w);
-        bitrv2(n, ip, a);
-        break;
-
-    default:
-        cftf1st(n, a, &w[nw - (n >> 2)]);
-        cftrec4(n, a, nw, w);
-        bitrv2(n, ip, a);
-        break;
-    }
+    cftf1st(n, a, &w[nw - (n >> 2)]);
+    cftrec4(n, a, nw, w);
+    bitrv2(n, ip, a);
 }
 
 
-void cftbsub_x(int n, f32 *a, int *ip, int nw, f32 *w)
+void cftbsub_1024(int n, f32* a, int *ip, int nw, f32* w)
 {
-    void bitrv2conj(int n, int *ip, f32 *a);
-    void bitrv216neg(f32 *a);
-    void bitrv208neg(f32 *a);
-    void cftb1st(int n, f32 *a, f32 *w);
-    void cftrec4(int n, f32 *a, int nw, f32 *w);
-    void cftleaf(int n, int isplt, f32 *a, int nw, f32 *w);
-    void cftfx41(int n, f32 *a, int nw, f32 *w);
-    void cftf161(f32 *a, f32 *w);
-    void cftf081(f32 *a, f32 *w);
-    void cftb040(f32 *a);
-    void cftx020(f32 *a);
+    void bitrv2conj(int n, int *ip, f32* a);
+    void cftb1st(int n, f32* a, f32* w);
+    void cftrec4(int n, f32* a, int nw, f32* w);
 
-    switch (n)
-    {
-        case 4:
-        cftx020(a);
-        break;
-
-    case 8:
-        cftb040(a);
-        break;
-
-    case 16:
-        cftf081(a, w);
-        bitrv208neg(a);
-        break;
-
-    case 32:
-        cftf161(a, &w[nw - 8]);
-        bitrv216neg(a);
-        break;
-
-    case 64:
-    case 128:
-        cftb1st(n, a, &w[nw - (n >> 2)]);
-        cftfx41(n, a, nw, w);
-        bitrv2conj(n, ip, a);
-        break;
-
-    case 256:
-    case 512:
-        cftb1st(n, a, &w[nw - (n >> 2)]);
-        cftleaf(n, 1, a, nw, w);
-        bitrv2conj(n, ip, a);
-        break;
-
-    default:
-        cftb1st(n, a, &w[nw - (n >> 2)]);
-        cftrec4(n, a, nw, w);
-        bitrv2conj(n, ip, a);
-        break;
-    }
+    cftb1st(n, a, &w[nw - (n >> 2)]);
+    cftrec4(n, a, nw, w);
+    bitrv2conj(n, ip, a);
 }
 
 
 // *******************************************
-
-
-// ******* original api ***********
-/*
-
-void cdft(int n, int isgn, f32 *a, int *ip, f32 *w)
-{
-    void makewt(int nw, int *ip, f32 *w);
-    void cftfsub(int n, f32 *a, int *ip, int nw, f32 *w);
-    void cftbsub(int n, f32 *a, int *ip, int nw, f32 *w);
-    int nw;
-    
-    nw = ip[0];
-    if (n > (nw << 2)) {
-        nw = n >> 2;
-        makewt(nw, ip, w);
-    }
-    if (isgn >= 0) {
-        cftfsub(n, a, ip, nw, w);
-    } else {
-        cftbsub(n, a, ip, nw, w);
-    }
-}
-
-
-void rdft(int n, int isgn, f32 *a, int *ip, f32 *w)
-{
-    void makewt(int nw, int *ip, f32 *w);
-    void makect(int nc, int *ip, f32 *c);
-    void cftfsub(int n, f32 *a, int *ip, int nw, f32 *w);
-    void cftbsub(int n, f32 *a, int *ip, int nw, f32 *w);
-    void rftfsub(int n, f32 *a, int nc, f32 *c);
-    void rftbsub(int n, f32 *a, int nc, f32 *c);
-    int nw, nc;
-    f32 xi;
-    
-    nw = ip[0];
-    if (n > (nw << 2)) {
-        nw = n >> 2;
-        makewt(nw, ip, w);
-    }
-    nc = ip[1];
-    if (n > (nc << 2)) {
-        nc = n >> 2;
-        makect(nc, ip, w + nw);
-    }
-    if (isgn >= 0) {
-        if (n > 4) {
-            cftfsub(n, a, ip, nw, w);
-            rftfsub(n, a, nc, w + nw);
-        } else if (n == 4) {
-            cftfsub(n, a, ip, nw, w);
-        }
-        xi = a[0] - a[1];
-        a[0] += a[1];
-        a[1] = xi;
-    } else {
-        a[1] = 0.5 * (a[0] - a[1]);
-        a[0] -= a[1];
-        if (n > 4) {
-            rftbsub(n, a, nc, w + nw);
-            cftbsub(n, a, ip, nw, w);
-        } else if (n == 4) {
-            cftbsub(n, a, ip, nw, w);
-        }
-    }
-}
-
-
-void ddct(int n, int isgn, f32 *a, int *ip, f32 *w)
-{
-    void makewt(int nw, int *ip, f32 *w);
-    void makect(int nc, int *ip, f32 *c);
-    void cftfsub(int n, f32 *a, int *ip, int nw, f32 *w);
-    void cftbsub(int n, f32 *a, int *ip, int nw, f32 *w);
-    void rftfsub(int n, f32 *a, int nc, f32 *c);
-    void rftbsub(int n, f32 *a, int nc, f32 *c);
-    void dctsub(int n, f32 *a, int nc, f32 *c);
-    int j, nw, nc;
-    f32 xr;
-    
-    nw = ip[0];
-    if (n > (nw << 2)) {
-        nw = n >> 2;
-        makewt(nw, ip, w);
-    }
-    nc = ip[1];
-    if (n > nc) {
-        nc = n;
-        makect(nc, ip, w + nw);
-    }
-    if (isgn < 0) {
-        xr = a[n - 1];
-        for (j = n - 2; j >= 2; j -= 2) {
-            a[j + 1] = a[j] - a[j - 1];
-            a[j] += a[j - 1];
-        }
-        a[1] = a[0] - xr;
-        a[0] += xr;
-        if (n > 4) {
-            rftbsub(n, a, nc, w + nw);
-            cftbsub(n, a, ip, nw, w);
-        } else if (n == 4) {
-            cftbsub(n, a, ip, nw, w);
-        }
-    }
-    dctsub(n, a, nc, w + nw);
-    if (isgn >= 0) {
-        if (n > 4) {
-            cftfsub(n, a, ip, nw, w);
-            rftfsub(n, a, nc, w + nw);
-        } else if (n == 4) {
-            cftfsub(n, a, ip, nw, w);
-        }
-        xr = a[0] - a[1];
-        a[0] += a[1];
-        for (j = 2; j < n; j += 2) {
-            a[j - 1] = a[j] - a[j + 1];
-            a[j] += a[j + 1];
-        }
-        a[n - 1] = xr;
-    }
-}
-
-
-void ddst(int n, int isgn, f32 *a, int *ip, f32 *w)
-{
-    void makewt(int nw, int *ip, f32 *w);
-    void makect(int nc, int *ip, f32 *c);
-    void cftfsub(int n, f32 *a, int *ip, int nw, f32 *w);
-    void cftbsub(int n, f32 *a, int *ip, int nw, f32 *w);
-    void rftfsub(int n, f32 *a, int nc, f32 *c);
-    void rftbsub(int n, f32 *a, int nc, f32 *c);
-    void dstsub(int n, f32 *a, int nc, f32 *c);
-    int j, nw, nc;
-    f32 xr;
-    
-    nw = ip[0];
-    if (n > (nw << 2)) {
-        nw = n >> 2;
-        makewt(nw, ip, w);
-    }
-    nc = ip[1];
-    if (n > nc) {
-        nc = n;
-        makect(nc, ip, w + nw);
-    }
-    if (isgn < 0) {
-        xr = a[n - 1];
-        for (j = n - 2; j >= 2; j -= 2) {
-            a[j + 1] = -a[j] - a[j - 1];
-            a[j] -= a[j - 1];
-        }
-        a[1] = a[0] + xr;
-        a[0] -= xr;
-        if (n > 4) {
-            rftbsub(n, a, nc, w + nw);
-            cftbsub(n, a, ip, nw, w);
-        } else if (n == 4) {
-            cftbsub(n, a, ip, nw, w);
-        }
-    }
-    dstsub(n, a, nc, w + nw);
-    if (isgn >= 0) {
-        if (n > 4) {
-            cftfsub(n, a, ip, nw, w);
-            rftfsub(n, a, nc, w + nw);
-        } else if (n == 4) {
-            cftfsub(n, a, ip, nw, w);
-        }
-        xr = a[0] - a[1];
-        a[0] += a[1];
-        for (j = 2; j < n; j += 2) {
-            a[j - 1] = -a[j] - a[j + 1];
-            a[j] -= a[j + 1];
-        }
-        a[n - 1] = -xr;
-    }
-}
-
-
-void dfct(int n, f32 *a, f32 *t, int *ip, f32 *w)
-{
-    void makewt(int nw, int *ip, f32 *w);
-    void makect(int nc, int *ip, f32 *c);
-    void cftfsub(int n, f32 *a, int *ip, int nw, f32 *w);
-    void rftfsub(int n, f32 *a, int nc, f32 *c);
-    void dctsub(int n, f32 *a, int nc, f32 *c);
-    int j, k, l, m, mh, nw, nc;
-    f32 xr, xi, yr, yi;
-    
-    nw = ip[0];
-    if (n > (nw << 3)) {
-        nw = n >> 3;
-        makewt(nw, ip, w);
-    }
-    nc = ip[1];
-    if (n > (nc << 1)) {
-        nc = n >> 1;
-        makect(nc, ip, w + nw);
-    }
-    m = n >> 1;
-    yi = a[m];
-    xi = a[0] + a[n];
-    a[0] -= a[n];
-    t[0] = xi - yi;
-    t[m] = xi + yi;
-    if (n > 2) {
-        mh = m >> 1;
-        for (j = 1; j < mh; j++) {
-            k = m - j;
-            xr = a[j] - a[n - j];
-            xi = a[j] + a[n - j];
-            yr = a[k] - a[n - k];
-            yi = a[k] + a[n - k];
-            a[j] = xr;
-            a[k] = yr;
-            t[j] = xi - yi;
-            t[k] = xi + yi;
-        }
-        t[mh] = a[mh] + a[n - mh];
-        a[mh] -= a[n - mh];
-        dctsub(m, a, nc, w + nw);
-        if (m > 4) {
-            cftfsub(m, a, ip, nw, w);
-            rftfsub(m, a, nc, w + nw);
-        } else if (m == 4) {
-            cftfsub(m, a, ip, nw, w);
-        }
-        a[n - 1] = a[0] - a[1];
-        a[1] = a[0] + a[1];
-        for (j = m - 2; j >= 2; j -= 2) {
-            a[2 * j + 1] = a[j] + a[j + 1];
-            a[2 * j - 1] = a[j] - a[j + 1];
-        }
-        l = 2;
-        m = mh;
-        while (m >= 2) {
-            dctsub(m, t, nc, w + nw);
-            if (m > 4) {
-                cftfsub(m, t, ip, nw, w);
-                rftfsub(m, t, nc, w + nw);
-            } else if (m == 4) {
-                cftfsub(m, t, ip, nw, w);
-            }
-            a[n - l] = t[0] - t[1];
-            a[l] = t[0] + t[1];
-            k = 0;
-            for (j = 2; j < m; j += 2) {
-                k += l << 2;
-                a[k - l] = t[j] - t[j + 1];
-                a[k + l] = t[j] + t[j + 1];
-            }
-            l <<= 1;
-            mh = m >> 1;
-            for (j = 0; j < mh; j++) {
-                k = m - j;
-                t[j] = t[m + k] - t[m + j];
-                t[k] = t[m + k] + t[m + j];
-            }
-            t[mh] = t[m + mh];
-            m = mh;
-        }
-        a[l] = t[0];
-        a[n] = t[2] - t[1];
-        a[0] = t[2] + t[1];
-    } else {
-        a[1] = a[0];
-        a[2] = t[0];
-        a[0] = t[1];
-    }
-}
-
-
-void dfst(int n, f32 *a, f32 *t, int *ip, f32 *w)
-{
-    void makewt(int nw, int *ip, f32 *w);
-    void makect(int nc, int *ip, f32 *c);
-    void cftfsub(int n, f32 *a, int *ip, int nw, f32 *w);
-    void rftfsub(int n, f32 *a, int nc, f32 *c);
-    void dstsub(int n, f32 *a, int nc, f32 *c);
-    int j, k, l, m, mh, nw, nc;
-    f32 xr, xi, yr, yi;
-    
-    nw = ip[0];
-    if (n > (nw << 3)) {
-        nw = n >> 3;
-        makewt(nw, ip, w);
-    }
-    nc = ip[1];
-    if (n > (nc << 1)) {
-        nc = n >> 1;
-        makect(nc, ip, w + nw);
-    }
-    if (n > 2) {
-        m = n >> 1;
-        mh = m >> 1;
-        for (j = 1; j < mh; j++) {
-            k = m - j;
-            xr = a[j] + a[n - j];
-            xi = a[j] - a[n - j];
-            yr = a[k] + a[n - k];
-            yi = a[k] - a[n - k];
-            a[j] = xr;
-            a[k] = yr;
-            t[j] = xi + yi;
-            t[k] = xi - yi;
-        }
-        t[0] = a[mh] - a[n - mh];
-        a[mh] += a[n - mh];
-        a[0] = a[m];
-        dstsub(m, a, nc, w + nw);
-        if (m > 4) {
-            cftfsub(m, a, ip, nw, w);
-            rftfsub(m, a, nc, w + nw);
-        } else if (m == 4) {
-            cftfsub(m, a, ip, nw, w);
-        }
-        a[n - 1] = a[1] - a[0];
-        a[1] = a[0] + a[1];
-        for (j = m - 2; j >= 2; j -= 2) {
-            a[2 * j + 1] = a[j] - a[j + 1];
-            a[2 * j - 1] = -a[j] - a[j + 1];
-        }
-        l = 2;
-        m = mh;
-        while (m >= 2) {
-            dstsub(m, t, nc, w + nw);
-            if (m > 4) {
-                cftfsub(m, t, ip, nw, w);
-                rftfsub(m, t, nc, w + nw);
-            } else if (m == 4) {
-                cftfsub(m, t, ip, nw, w);
-            }
-            a[n - l] = t[1] - t[0];
-            a[l] = t[0] + t[1];
-            k = 0;
-            for (j = 2; j < m; j += 2) {
-                k += l << 2;
-                a[k - l] = -t[j] - t[j + 1];
-                a[k + l] = t[j] - t[j + 1];
-            }
-            l <<= 1;
-            mh = m >> 1;
-            for (j = 1; j < mh; j++) {
-                k = m - j;
-                t[j] = t[m + k] + t[m + j];
-                t[k] = t[m + k] - t[m + j];
-            }
-            t[0] = t[m + mh];
-            m = mh;
-        }
-        a[l] = t[0];
-    }
-    a[0] = 0;
-}
-
-*/
 
 
 /* -------- initializing routines -------- */
@@ -884,7 +147,7 @@ static inline f32 atan(f32 val)
 #endif
 
 
-void makewt(int nw, int *ip, f32 *w)
+void makewt(int nw, int *ip, f32* w)
 {
     void makeipt(int nw, int *ip);
     int j, nwh, nw0, nw1;
@@ -965,7 +228,7 @@ void makeipt(int nw, int *ip)
 }
 
 
-void makect(int nc, int *ip, f32 *c)
+void makect(int nc, int *ip, f32* c)
 {
     int j, nch;
     f32 delta;
@@ -986,91 +249,7 @@ void makect(int nc, int *ip, f32 *c)
 
 /* -------- child routines -------- */
 
-/*
-void cftfsub(int n, f32 *a, int *ip, int nw, f32 *w)
-{
-    void bitrv2(int n, int *ip, f32 *a);
-    void bitrv216(f32 *a);
-    void bitrv208(f32 *a);
-    void cftf1st(int n, f32 *a, f32 *w);
-    void cftrec4(int n, f32 *a, int nw, f32 *w);
-    void cftleaf(int n, int isplt, f32 *a, int nw, f32 *w);
-    void cftfx41(int n, f32 *a, int nw, f32 *w);
-    void cftf161(f32 *a, f32 *w);
-    void cftf081(f32 *a, f32 *w);
-    void cftf040(f32 *a);
-    void cftx020(f32 *a);
-    
-    if (n > 8) {
-        if (n > 32) {
-            cftf1st(n, a, &w[nw - (n >> 2)]);
-            
-            if (n > 512) {
-                cftrec4(n, a, nw, w);
-            } else if (n > 128) {
-                cftleaf(n, 1, a, nw, w);
-            } else {
-                cftfx41(n, a, nw, w);
-            }
-            bitrv2(n, ip, a);
-        } else if (n == 32) {
-            cftf161(a, &w[nw - 8]);
-            bitrv216(a);
-        } else {
-            cftf081(a, w);
-            bitrv208(a);
-        }
-    } else if (n == 8) {
-        cftf040(a);
-    } else if (n == 4) {
-        cftx020(a);
-    }
-}
-
-
-void cftbsub(int n, f32 *a, int *ip, int nw, f32 *w)
-{
-    void bitrv2conj(int n, int *ip, f32 *a);
-    void bitrv216neg(f32 *a);
-    void bitrv208neg(f32 *a);
-    void cftb1st(int n, f32 *a, f32 *w);
-    void cftrec4(int n, f32 *a, int nw, f32 *w);
-    void cftleaf(int n, int isplt, f32 *a, int nw, f32 *w);
-    void cftfx41(int n, f32 *a, int nw, f32 *w);
-    void cftf161(f32 *a, f32 *w);
-    void cftf081(f32 *a, f32 *w);
-    void cftb040(f32 *a);
-    void cftx020(f32 *a);
-    
-    if (n > 8) {
-        if (n > 32) {
-            cftb1st(n, a, &w[nw - (n >> 2)]);
-            
-            if (n > 512) {
-                cftrec4(n, a, nw, w);
-            } else if (n > 128) {
-                cftleaf(n, 1, a, nw, w);
-            } else {
-                cftfx41(n, a, nw, w);
-            }
-            bitrv2conj(n, ip, a);
-        } else if (n == 32) {
-            cftf161(a, &w[nw - 8]);
-            bitrv216neg(a);
-        } else {
-            cftf081(a, w);
-            bitrv208neg(a);
-        }
-    } else if (n == 8) {
-        cftb040(a);
-    } else if (n == 4) {
-        cftx020(a);
-    }
-}
-
-*/
-
-void bitrv2(int n, int *ip, f32 *a)
+void bitrv2(int n, int *ip, f32* a)
 {
     int j, j1, k, k1, l, m, nh, nm;
     f32 xr, xi, yr, yi;
@@ -1448,7 +627,7 @@ void bitrv2(int n, int *ip, f32 *a)
 }
 
 
-void bitrv2conj(int n, int *ip, f32 *a)
+void bitrv2conj(int n, int *ip, f32* a)
 {
     int j, j1, k, k1, l, m, nh, nm;
     f32 xr, xi, yr, yi;
@@ -1803,193 +982,7 @@ void bitrv2conj(int n, int *ip, f32 *a)
 }
 
 
-void bitrv216(f32 *a)
-{
-    f32 x1r, x1i, x2r, x2i, x3r, x3i, x4r, x4i, 
-        x5r, x5i, x7r, x7i, x8r, x8i, x10r, x10i, 
-        x11r, x11i, x12r, x12i, x13r, x13i, x14r, x14i;
-    
-    x1r = a[2];
-    x1i = a[3];
-    x2r = a[4];
-    x2i = a[5];
-    x3r = a[6];
-    x3i = a[7];
-    x4r = a[8];
-    x4i = a[9];
-    x5r = a[10];
-    x5i = a[11];
-    x7r = a[14];
-    x7i = a[15];
-    x8r = a[16];
-    x8i = a[17];
-    x10r = a[20];
-    x10i = a[21];
-    x11r = a[22];
-    x11i = a[23];
-    x12r = a[24];
-    x12i = a[25];
-    x13r = a[26];
-    x13i = a[27];
-    x14r = a[28];
-    x14i = a[29];
-    a[2] = x8r;
-    a[3] = x8i;
-    a[4] = x4r;
-    a[5] = x4i;
-    a[6] = x12r;
-    a[7] = x12i;
-    a[8] = x2r;
-    a[9] = x2i;
-    a[10] = x10r;
-    a[11] = x10i;
-    a[14] = x14r;
-    a[15] = x14i;
-    a[16] = x1r;
-    a[17] = x1i;
-    a[20] = x5r;
-    a[21] = x5i;
-    a[22] = x13r;
-    a[23] = x13i;
-    a[24] = x3r;
-    a[25] = x3i;
-    a[26] = x11r;
-    a[27] = x11i;
-    a[28] = x7r;
-    a[29] = x7i;
-}
-
-
-void bitrv216neg(f32 *a)
-{
-    f32 x1r, x1i, x2r, x2i, x3r, x3i, x4r, x4i, 
-        x5r, x5i, x6r, x6i, x7r, x7i, x8r, x8i, 
-        x9r, x9i, x10r, x10i, x11r, x11i, x12r, x12i, 
-        x13r, x13i, x14r, x14i, x15r, x15i;
-    
-    x1r = a[2];
-    x1i = a[3];
-    x2r = a[4];
-    x2i = a[5];
-    x3r = a[6];
-    x3i = a[7];
-    x4r = a[8];
-    x4i = a[9];
-    x5r = a[10];
-    x5i = a[11];
-    x6r = a[12];
-    x6i = a[13];
-    x7r = a[14];
-    x7i = a[15];
-    x8r = a[16];
-    x8i = a[17];
-    x9r = a[18];
-    x9i = a[19];
-    x10r = a[20];
-    x10i = a[21];
-    x11r = a[22];
-    x11i = a[23];
-    x12r = a[24];
-    x12i = a[25];
-    x13r = a[26];
-    x13i = a[27];
-    x14r = a[28];
-    x14i = a[29];
-    x15r = a[30];
-    x15i = a[31];
-    a[2] = x15r;
-    a[3] = x15i;
-    a[4] = x7r;
-    a[5] = x7i;
-    a[6] = x11r;
-    a[7] = x11i;
-    a[8] = x3r;
-    a[9] = x3i;
-    a[10] = x13r;
-    a[11] = x13i;
-    a[12] = x5r;
-    a[13] = x5i;
-    a[14] = x9r;
-    a[15] = x9i;
-    a[16] = x1r;
-    a[17] = x1i;
-    a[18] = x14r;
-    a[19] = x14i;
-    a[20] = x6r;
-    a[21] = x6i;
-    a[22] = x10r;
-    a[23] = x10i;
-    a[24] = x2r;
-    a[25] = x2i;
-    a[26] = x12r;
-    a[27] = x12i;
-    a[28] = x4r;
-    a[29] = x4i;
-    a[30] = x8r;
-    a[31] = x8i;
-}
-
-
-void bitrv208(f32 *a)
-{
-    f32 x1r, x1i, x3r, x3i, x4r, x4i, x6r, x6i;
-    
-    x1r = a[2];
-    x1i = a[3];
-    x3r = a[6];
-    x3i = a[7];
-    x4r = a[8];
-    x4i = a[9];
-    x6r = a[12];
-    x6i = a[13];
-    a[2] = x4r;
-    a[3] = x4i;
-    a[6] = x6r;
-    a[7] = x6i;
-    a[8] = x1r;
-    a[9] = x1i;
-    a[12] = x3r;
-    a[13] = x3i;
-}
-
-
-void bitrv208neg(f32 *a)
-{
-    f32 x1r, x1i, x2r, x2i, x3r, x3i, x4r, x4i, 
-        x5r, x5i, x6r, x6i, x7r, x7i;
-    
-    x1r = a[2];
-    x1i = a[3];
-    x2r = a[4];
-    x2i = a[5];
-    x3r = a[6];
-    x3i = a[7];
-    x4r = a[8];
-    x4i = a[9];
-    x5r = a[10];
-    x5i = a[11];
-    x6r = a[12];
-    x6i = a[13];
-    x7r = a[14];
-    x7i = a[15];
-    a[2] = x7r;
-    a[3] = x7i;
-    a[4] = x3r;
-    a[5] = x3i;
-    a[6] = x5r;
-    a[7] = x5i;
-    a[8] = x1r;
-    a[9] = x1i;
-    a[10] = x6r;
-    a[11] = x6i;
-    a[12] = x2r;
-    a[13] = x2i;
-    a[14] = x4r;
-    a[15] = x4i;
-}
-
-
-void cftf1st(int n, f32 *a, f32 *w)
+void cftf1st(int n, f32* a, f32* w)
 {
     int j, j0, j1, j2, j3, k, m, mh;
     f32 wn4r, csc1, csc3, wk1r, wk1i, wk3r, wk3i, 
@@ -2195,7 +1188,7 @@ void cftf1st(int n, f32 *a, f32 *w)
 }
 
 
-void cftb1st(int n, f32 *a, f32 *w)
+void cftb1st(int n, f32* a, f32* w)
 {
     int j, j0, j1, j2, j3, k, m, mh;
     f32 wn4r, csc1, csc3, wk1r, wk1i, wk3r, wk3i, 
@@ -2401,11 +1394,11 @@ void cftb1st(int n, f32 *a, f32 *w)
 }
 
 
-void cftrec4(int n, f32 *a, int nw, f32 *w)
+void cftrec4(int n, f32* a, int nw, f32* w)
 {
-    int cfttree(int n, int j, int k, f32 *a, int nw, f32 *w);
-    void cftleaf(int n, int isplt, f32 *a, int nw, f32 *w);
-    void cftmdl1(int n, f32 *a, f32 *w);
+    int cfttree(int n, int j, int k, f32* a, int nw, f32* w);
+    void cftleaf(int n, int isplt, f32* a, int nw, f32* w);
+    void cftmdl1(int n, f32* a, f32* w);
     int isplt, j, k, m;
     
     m = n;
@@ -2423,10 +1416,10 @@ void cftrec4(int n, f32 *a, int nw, f32 *w)
 }
 
 
-int cfttree(int n, int j, int k, f32 *a, int nw, f32 *w)
+int cfttree(int n, int j, int k, f32* a, int nw, f32* w)
 {
-    void cftmdl1(int n, f32 *a, f32 *w);
-    void cftmdl2(int n, f32 *a, f32 *w);
+    void cftmdl1(int n, f32* a, f32* w);
+    void cftmdl2(int n, f32* a, f32* w);
     int i, isplt, m;
     
     if ((k & 3) != 0) {
@@ -2458,14 +1451,14 @@ int cfttree(int n, int j, int k, f32 *a, int nw, f32 *w)
 }
 
 
-void cftleaf(int n, int isplt, f32 *a, int nw, f32 *w)
+void cftleaf(int n, int isplt, f32* a, int nw, f32* w)
 {
-    void cftmdl1(int n, f32 *a, f32 *w);
-    void cftmdl2(int n, f32 *a, f32 *w);
-    void cftf161(f32 *a, f32 *w);
-    void cftf162(f32 *a, f32 *w);
-    void cftf081(f32 *a, f32 *w);
-    void cftf082(f32 *a, f32 *w);
+    void cftmdl1(int n, f32* a, f32* w);
+    void cftmdl2(int n, f32* a, f32* w);
+    void cftf161(f32* a, f32* w);
+    void cftf162(f32* a, f32* w);
+    void cftf081(f32* a, f32* w);
+    void cftf082(f32* a, f32* w);
     
     if (n == 512) {
         cftmdl1(128, a, &w[nw - 64]);
@@ -2523,7 +1516,7 @@ void cftleaf(int n, int isplt, f32 *a, int nw, f32 *w)
 }
 
 
-void cftmdl1(int n, f32 *a, f32 *w)
+void cftmdl1(int n, f32* a, f32* w)
 {
     int j, j0, j1, j2, j3, k, m, mh;
     f32 wn4r, wk1r, wk1i, wk3r, wk3i;
@@ -2633,7 +1626,7 @@ void cftmdl1(int n, f32 *a, f32 *w)
 }
 
 
-void cftmdl2(int n, f32 *a, f32 *w)
+void cftmdl2(int n, f32* a, f32* w)
 {
     int j, j0, j1, j2, j3, k, kr, m, mh;
     f32 wn4r, wk1r, wk1i, wk3r, wk3i, wd1r, wd1i, wd3r, wd3i;
@@ -2767,28 +1760,7 @@ void cftmdl2(int n, f32 *a, f32 *w)
 }
 
 
-void cftfx41(int n, f32 *a, int nw, f32 *w)
-{
-    void cftf161(f32 *a, f32 *w);
-    void cftf162(f32 *a, f32 *w);
-    void cftf081(f32 *a, f32 *w);
-    void cftf082(f32 *a, f32 *w);
-    
-    if (n == 128) {
-        cftf161(a, &w[nw - 8]);
-        cftf162(&a[32], &w[nw - 32]);
-        cftf161(&a[64], &w[nw - 8]);
-        cftf161(&a[96], &w[nw - 8]);
-    } else {
-        cftf081(a, &w[nw - 8]);
-        cftf082(&a[16], &w[nw - 8]);
-        cftf081(&a[32], &w[nw - 8]);
-        cftf081(&a[48], &w[nw - 8]);
-    }
-}
-
-
-void cftf161(f32 *a, f32 *w)
+void cftf161(f32* a, f32* w)
 {
     f32 wn4r, wk1r, wk1i, 
         x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i, 
@@ -2947,7 +1919,7 @@ void cftf161(f32 *a, f32 *w)
 }
 
 
-void cftf162(f32 *a, f32 *w)
+void cftf162(f32* a, f32* w)
 {
     f32 wn4r, wk1r, wk1i, wk2r, wk2i, wk3r, wk3i, 
         x0r, x0i, x1r, x1i, x2r, x2i, 
@@ -3130,7 +2102,7 @@ void cftf162(f32 *a, f32 *w)
 }
 
 
-void cftf081(f32 *a, f32 *w)
+void cftf081(f32* a, f32* w)
 {
     f32 wn4r, x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i, 
         y0r, y0i, y1r, y1i, y2r, y2i, y3r, y3i, 
@@ -3192,7 +2164,7 @@ void cftf081(f32 *a, f32 *w)
 }
 
 
-void cftf082(f32 *a, f32 *w)
+void cftf082(f32* a, f32* w)
 {
     f32 wn4r, wk1r, wk1i, x0r, x0i, x1r, x1i, 
         y0r, y0i, y1r, y1i, y2r, y2i, y3r, y3i, 
@@ -3264,66 +2236,7 @@ void cftf082(f32 *a, f32 *w)
 }
 
 
-void cftf040(f32 *a)
-{
-    f32 x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i;
-    
-    x0r = a[0] + a[4];
-    x0i = a[1] + a[5];
-    x1r = a[0] - a[4];
-    x1i = a[1] - a[5];
-    x2r = a[2] + a[6];
-    x2i = a[3] + a[7];
-    x3r = a[2] - a[6];
-    x3i = a[3] - a[7];
-    a[0] = x0r + x2r;
-    a[1] = x0i + x2i;
-    a[2] = x1r - x3i;
-    a[3] = x1i + x3r;
-    a[4] = x0r - x2r;
-    a[5] = x0i - x2i;
-    a[6] = x1r + x3i;
-    a[7] = x1i - x3r;
-}
-
-
-void cftb040(f32 *a)
-{
-    f32 x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i;
-    
-    x0r = a[0] + a[4];
-    x0i = a[1] + a[5];
-    x1r = a[0] - a[4];
-    x1i = a[1] - a[5];
-    x2r = a[2] + a[6];
-    x2i = a[3] + a[7];
-    x3r = a[2] - a[6];
-    x3i = a[3] - a[7];
-    a[0] = x0r + x2r;
-    a[1] = x0i + x2i;
-    a[2] = x1r + x3i;
-    a[3] = x1i - x3r;
-    a[4] = x0r - x2r;
-    a[5] = x0i - x2i;
-    a[6] = x1r - x3i;
-    a[7] = x1i + x3r;
-}
-
-
-void cftx020(f32 *a)
-{
-    f32 x0r, x0i;
-    
-    x0r = a[0] - a[2];
-    x0i = a[1] - a[3];
-    a[0] += a[2];
-    a[1] += a[3];
-    a[2] = x0r;
-    a[3] = x0i;
-}
-
-
-void rftfsub(int n, f32 *a, int nc, f32 *c)
+void rftfsub(int n, f32* a, int nc, f32* c)
 {
     int j, k, kk, ks, m;
     f32 wkr, wki, xr, xi, yr, yi;
@@ -3348,7 +2261,7 @@ void rftfsub(int n, f32 *a, int nc, f32 *c)
 }
 
 
-void rftbsub(int n, f32 *a, int nc, f32 *c)
+void rftbsub(int n, f32* a, int nc, f32* c)
 {
     int j, k, kk, ks, m;
     f32 wkr, wki, xr, xi, yr, yi;
@@ -3370,47 +2283,5 @@ void rftbsub(int n, f32 *a, int nc, f32 *c)
         a[k] += yr;
         a[k + 1] -= yi;
     }
-}
-
-
-void dctsub(int n, f32 *a, int nc, f32 *c)
-{
-    int j, k, kk, ks, m;
-    f32 wkr, wki, xr;
-    
-    m = n >> 1;
-    ks = nc / n;
-    kk = 0;
-    for (j = 1; j < m; j++) {
-        k = n - j;
-        kk += ks;
-        wkr = c[kk] - c[nc - kk];
-        wki = c[kk] + c[nc - kk];
-        xr = wki * a[j] - wkr * a[k];
-        a[j] = wkr * a[j] + wki * a[k];
-        a[k] = xr;
-    }
-    a[m] *= c[0];
-}
-
-
-void dstsub(int n, f32 *a, int nc, f32 *c)
-{
-    int j, k, kk, ks, m;
-    f32 wkr, wki, xr;
-    
-    m = n >> 1;
-    ks = nc / n;
-    kk = 0;
-    for (j = 1; j < m; j++) {
-        k = n - j;
-        kk += ks;
-        wkr = c[kk] - c[nc - kk];
-        wki = c[kk] + c[nc - kk];
-        xr = wki * a[k] - wkr * a[j];
-        a[k] = wkr * a[k] + wki * a[j];
-        a[j] = xr;
-    }
-    a[m] *= c[0];
 }
 
