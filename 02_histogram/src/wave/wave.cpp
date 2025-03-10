@@ -29,9 +29,9 @@ namespace wave
         FFT fft;
 
         f32 sample_data[FFT::size];
+        f32 inverse_data[FFT::size];
 
         CBStatus cb_status;
-
 
 
         static WaveData* create() { return (WaveData*)std::malloc(sizeof(WaveData)); }
@@ -135,6 +135,19 @@ namespace wave
     }
 
 
+    static void inverse_fft(WaveContext& ctx)
+    {
+        auto& fft = get_data(ctx).fft;
+
+        fft.inverse();
+
+        for (u32 i = 0; i < fft.size; i++)
+        {
+            ctx.fft_inverted.data[i] = fft.buffer[i];
+        }
+    }
+
+
     static void wave_cb(WaveContext& ctx)
     {
         constexpr auto N = FFT::size;
@@ -188,6 +201,8 @@ namespace wave
                 break;
             }
 
+            inverse_fft(ctx);
+
             cap_thread_ns(sw, 500.0);
         }
 
@@ -218,6 +233,10 @@ namespace wave
         ctx.samples.data = data.sample_data;
         ctx.samples.length = data.fft.size;
         ctx.samples.zero();
+
+        ctx.fft_inverted.data = data.inverse_data;
+        ctx.fft_inverted.length = data.fft.size;
+        ctx.fft_inverted.zero();
 
         ctx.status = WaveStatus::Open;
 

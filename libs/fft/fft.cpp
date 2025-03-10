@@ -9,9 +9,9 @@ namespace internal
 
     void rdft_ip_w(int n, int* ip, f32* w);
 
-    void rdft_forward_1024(int n, f32* a, int* ip, f32* w);
+    void rdft_forward(int n, f32* a, int* ip, f32* w);
 
-    void rdft_inverse_1024(int n, f32 *a, int *ip, f32 *w);
+    void rdft_inverse(int n, f32 *a, int *ip, f32 *w);
 
 
     void init_ip_w(u32 n, i32* ip, f32* w)
@@ -22,7 +22,7 @@ namespace internal
 
     void forward(u32 n, f32* buffer, i32* ip, f32* w, f32* bins)
     {
-        rdft_forward_1024((int)n, buffer, ip, w);
+        rdft_forward((int)n, buffer, ip, w);
 
         u32 b = 0;
         for (u32 i = 2; i < n; i += 2)
@@ -34,16 +34,15 @@ namespace internal
 
     void inverse(u32 n, f32* buffer, i32* ip, f32* w)
     {
-        rdft_inverse_1024((int)n, buffer, ip, w);
+        rdft_inverse((int)n, buffer, ip, w);
     }
 
 
     void forward(u32 n, f32* buffer, i32* ip, f32* w)
     {
-        assert(n >= 1024);
-        rdft_forward_1024((int)n, buffer, ip, w);
+        rdft_forward((int)n, buffer, ip, w);
     }
 
-    #include "fftsg_f32_simd.cpp"
+    #include "fftsg_f32.cpp"
 }
 }

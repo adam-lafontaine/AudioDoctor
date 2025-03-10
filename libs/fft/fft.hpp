@@ -92,35 +92,3 @@ namespace fft
         void inverse() { internal::inverse(size, buffer, ip, w); }
     };
 }
-
-
-namespace fft
-{
-    template <u32 B2EXP>
-    class FFT2
-    {
-    public:
-        static constexpr u32 exp = B2EXP;
-        static constexpr u32 size = internal::fft_size(exp);
-        static constexpr u32 n_bins = internal::fft_bin_size(size);
-
-        i32 ip[internal::fft_ip_size(size)];
-        f32 w[internal::fft_w_size(size)];
-
-
-        void init() 
-        { 
-            static_assert(num::is_power_of_2(size));
-            static_assert(size >= 4);
-
-            internal::init_ip_w(size, ip, w);
-        }
-
-
-        void forward(f32* buffer, f32* bins) { internal::forward(size, buffer, ip, w, bins); }
-
-        void forward(f32* buffer) { internal::forward(size, buffer, ip, w); }
-
-        void inverse(f32* buffer) { internal::inverse(size, buffer, ip, w); }        
-    };
-}

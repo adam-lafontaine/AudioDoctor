@@ -102,6 +102,31 @@ namespace internal
     }
 
 
+    static void plot_inverse_fft(wave::WaveContext& ctx)
+    {
+        auto plot_data = ctx.fft_inverted.data;
+        int data_count = ctx.fft_inverted.length;
+        int data_offset = 0;
+
+        constexpr auto plot_min = -1.0f;
+        constexpr auto plot_max = 1.0f;
+        constexpr auto plot_size = ImVec2(0, 80.0f);
+        constexpr auto data_stride = sizeof(f32);
+
+        char overlay[32] = { 0 };
+        //stb::qsnprintf(overlay, 32, "%3.1f", mic.sample);
+
+        ImGui::PlotLines("Inverse FFT", 
+            plot_data, 
+            data_count, 
+            data_offset, 
+            overlay,
+            plot_min, plot_max, 
+            plot_size, 
+            data_stride);
+    }
+
+
 }
 }
 
@@ -164,6 +189,7 @@ namespace display
         internal::select_wave(state.wave);
         internal::plot_samples(state.wave);
         internal::plot_fft_bins(state.wave);
+        internal::plot_inverse_fft(state.wave);
 
         ImGui::End();
     }

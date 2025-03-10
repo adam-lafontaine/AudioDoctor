@@ -42,6 +42,7 @@ namespace wave
 
         Span fft_bins;
         Span samples;
+        Span fft_inverted;
 
         u64 handle;
     };
