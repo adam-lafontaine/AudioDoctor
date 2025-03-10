@@ -51,6 +51,10 @@ namespace internal
 
     void forward(u32 n, f32* buffer, i32* ip, f32* w, f32* bins);
 
+    void inverse(u32 n, f32* buffer, i32* ip, f32* w);
+
+    void forward(u32 n, f32* buffer, i32* ip, f32* w);
+
 }
 }
 
@@ -84,5 +88,7 @@ namespace fft
         }
 
         void forward(f32* bins) { internal::forward(size, buffer, ip, w, bins);  }
+
+        void inverse() { internal::inverse(size, buffer, ip, w); }
     };
 }

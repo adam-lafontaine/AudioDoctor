@@ -42,20 +42,6 @@ namespace numeric
 
 namespace numeric
 {
-namespace cxpr
-{
-    inline constexpr f64 fma(f64 a, f64 b, f64 c)
-    {
-        return a * b + c;
-    }
-
-
-    inline constexpr f32 fmaf(f32 a, f32 b, f32 c)
-    {
-        return a * b + c;
-    }
-
-} // cxpr
 
     inline f64 fma(f64 a, f64 b, f64 c)
     {
@@ -166,63 +152,6 @@ namespace numeric
     }
 
 
-namespace cxpr
-{
-    template <typename T>
-    inline constexpr T round_to_signed(f32 value)
-    {
-        static_assert(!is_unsigned<T>());
-
-        return (T)(value + sign<f32, f32>(value) * 0.5f);
-    }
-
-
-    template <typename T>
-    inline constexpr T round_to_signed(f64 value)
-    {
-        static_assert(!is_unsigned<T>());
-
-        return (T)(value + sign<f64, f64>(value) * 0.5);
-    }
-
-
-    inline constexpr f32 pow(f32 base, u32 exp)
-    {
-        f32 val = 1.0f;
-        for (u32 i = 0; i < exp; i++)
-        {
-            val *= base;
-        }
-
-        return val;
-    }
-
-
-    template <u32 N>
-    inline constexpr f32 round(f32 value)
-    {
-        constexpr auto f = pow(10.0f, N);
-        constexpr auto i_f = 1.0f / f;
-
-        return round_to_signed<i32>(value * f) * i_f;
-    }
-
-
-    template <typename T>
-    inline constexpr T floor(T value)
-    { 
-        return (T)round_to_signed<i64>(value - 0.5f);
-    }
-
-
-    template <typename T>
-    inline constexpr T ceil(T value)
-    { 
-        auto f = floor(value);
-        return (T)(f + (f != value));
-    }
-}
-
     template <typename T>
     inline constexpr f32 sign_f32(T value)
     {           
@@ -301,23 +230,6 @@ namespace cxpr
         auto f = floor(value);
         return (T)(f + (f != value));
     }
-
-
-namespace cxpr
-{
-    template <typename T>
-    inline constexpr T min(T a, T b)
-    {
-        return a < b ? a : b;
-    }
-
-
-    template <typename T>
-    inline constexpr T max(T a, T b)
-    {
-        return a > b ? a : b;
-    }
-}
 
 
     template <typename uT>
@@ -543,58 +455,6 @@ namespace numeric
     }
 
 
-namespace cxpr
-{
-    template <typename T>
-    inline constexpr T sin_approx(T rad)
-    {
-        // best for small angles e.g. 0 - 45deg
-
-        constexpr T B = (T)(4.0) / (T)(PI);
-        constexpr T C = (T)(-4.0) / ((T)(PI * PI));
-        constexpr T P = (T)(0.225);
-
-        T y = B * rad + C * rad * abs(rad);
-        y = P * (y * abs(y) - y) + y;
-
-        return y;
-    }
-
-
-    template <typename T>
-    inline constexpr T cos_approx(T rad)
-    {
-        // best for small angles e.g. 0 - 45deg
-
-        constexpr T tp = (T)(1.0) / (T)(2 * PI);
-
-        T x = rad * tp;
-
-        x -= (T)(0.25) + floor(x + T(0.25));
-        x *= (T)(16.0) * (abs(x) - (T)(0.5));
-        x += (T)(0.225) * x * (abs(x) - (T)(1.0));
-
-        return x;
-    }
-
-
-    inline constexpr f32 atan_approx(f32 tan)
-    {
-        f32 sq = tan * tan;
-
-        constexpr f32 a1  =  0.99997726f;
-        constexpr f32 a3  = -0.33262347f;
-        constexpr f32 a5  =  0.19354346f;
-        constexpr f32 a7  = -0.11643287f;
-        constexpr f32 a9  =  0.05265332f;
-        constexpr f32 a11 = -0.01172120f;        
-
-        //return tan * (a1 + sq * (a3 + sq * (a5 + sq * (a7 + sq * (a9 + sq * a11)))));
-        return tan * fmaf(sq, fmaf(sq, fmaf(sq, fmaf(sq, fmaf(sq, a11, a9), a7), a5), a3), a1);
-    }
-}
-
-
     template <typename T>
     inline constexpr T deg_to_rad(T deg)
     {
@@ -818,10 +678,143 @@ namespace numeric
 
         return rad_to_unsigned<uangle>(rad);
     }
+}
 
 
+namespace numeric
+{
 namespace cxpr
 {
+    inline constexpr f64 fma(f64 a, f64 b, f64 c)
+    {
+        return a * b + c;
+    }
+
+
+    inline constexpr f32 fmaf(f32 a, f32 b, f32 c)
+    {
+        return a * b + c;
+    }
+
+
+    template <typename T>
+    inline constexpr T round_to_signed(f32 value)
+    {
+        static_assert(!is_unsigned<T>());
+
+        return (T)(value + sign<f32, f32>(value) * 0.5f);
+    }
+
+
+    template <typename T>
+    inline constexpr T round_to_signed(f64 value)
+    {
+        static_assert(!is_unsigned<T>());
+
+        return (T)(value + sign<f64, f64>(value) * 0.5);
+    }
+
+
+    inline constexpr f32 pow(f32 base, u32 exp)
+    {
+        f32 val = 1.0f;
+        for (u32 i = 0; i < exp; i++)
+        {
+            val *= base;
+        }
+
+        return val;
+    }
+
+
+    template <u32 N>
+    inline constexpr f32 round(f32 value)
+    {
+        constexpr auto f = pow(10.0f, N);
+        constexpr auto i_f = 1.0f / f;
+
+        return round_to_signed<i32>(value * f) * i_f;
+    }
+
+
+    template <typename T>
+    inline constexpr T floor(T value)
+    { 
+        return (T)round_to_signed<i64>(value - 0.5f);
+    }
+
+
+    template <typename T>
+    inline constexpr T ceil(T value)
+    { 
+        auto f = floor(value);
+        return (T)(f + (f != value));
+    }
+
+
+    template <typename T>
+    inline constexpr T min(T a, T b)
+    {
+        return a < b ? a : b;
+    }
+
+
+    template <typename T>
+    inline constexpr T max(T a, T b)
+    {
+        return a > b ? a : b;
+    }
+
+
+    template <typename T>
+    inline constexpr T sin_approx(T rad)
+    {
+        // best for small angles e.g. 0 - 45deg
+
+        constexpr T B = (T)(4.0) / (T)(PI);
+        constexpr T C = (T)(-4.0) / ((T)(PI * PI));
+        constexpr T P = (T)(0.225);
+
+        T y = B * rad + C * rad * abs(rad);
+        y = P * (y * abs(y) - y) + y;
+
+        return y;
+    }
+
+
+    template <typename T>
+    inline constexpr T cos_approx(T rad)
+    {
+        // best for small angles e.g. 0 - 45deg
+
+        constexpr T tp = (T)(1.0) / (T)(2 * PI);
+
+        T x = rad * tp;
+
+        x -= (T)(0.25) + floor(x + T(0.25));
+        x *= (T)(16.0) * (abs(x) - (T)(0.5));
+        x += (T)(0.225) * x * (abs(x) - (T)(1.0));
+
+        return x;
+    }
+
+
+    inline constexpr f32 atan_approx(f32 tan)
+    {
+        f32 sq = tan * tan;
+
+        constexpr f32 a1  =  0.99997726f;
+        constexpr f32 a3  = -0.33262347f;
+        constexpr f32 a5  =  0.19354346f;
+        constexpr f32 a7  = -0.11643287f;
+        constexpr f32 a9  =  0.05265332f;
+        constexpr f32 a11 = -0.01172120f;        
+
+        //return tan * (a1 + sq * (a3 + sq * (a5 + sq * (a7 + sq * (a9 + sq * a11)))));
+        return tan * fmaf(sq, fmaf(sq, fmaf(sq, fmaf(sq, fmaf(sq, a11, a9), a7), a5), a3), a1);
+    }
+
+
     inline constexpr f32 sin(uangle a)
     {
         static_assert(sizeof(uangle) <= sizeof(u32));
