@@ -110,7 +110,7 @@ namespace mic
         auto const push_sample = [&](f32 sample)
         {
             state.sample = sample;
-            data.fft.buffer[b++] = (f64)sample;
+            data.fft.buffer[b++] = sample;
 
             if (b >= data.fft.size)
             {
@@ -139,7 +139,7 @@ namespace mic
         auto const push_sample = [&](f32 sample)
         {
             state.sample = sample;
-            data.fft.buffer[b++] = (f64)sample;
+            data.fft.buffer[b++] = sample;
 
             if (b >= data.fft.size)
             {
