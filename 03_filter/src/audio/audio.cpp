@@ -1,15 +1,20 @@
 #include "audio.hpp"
 #include "../../../libs/util/stopwatch.hpp"
+#include "../../../libs/util/numeric.hpp"
 #include "../../../libs/span/span.hpp"
 
 #include <SDL2/SDL.h>
 #include <thread>
 #include <cstdlib>
 #include <cassert>
+#include <cstdio>
 
 
 namespace audio
 {
+    namespace num = numeric;
+
+
     static constexpr int SAMPLE_RATE = 44100;
     static constexpr Uint8 CHANNELS = 1;    // Mono
 
@@ -97,33 +102,97 @@ namespace audio
 
 namespace audio
 {
-    
-    template <typename T, u32 SZ>
-    class RWBuffer
+    class RingBuffer
     {
     private:
-        u8 r = 0;
-        u8 w = 1;
+        static constexpr u16 SZ = 4096;
+        u16 rc;
+        u16 wc;
 
-        u8 rc = 0;
-
+        f32 data[SZ];
     public:
-        static constexpr u32 size = SZ;
 
-        T data[2][size];
+        void init()
+        {
+            wc = 0;
+            rc = SZ / 2;
+            SDL_memset(data, 0, SZ);
+        }
 
-        SpanView<T> wait_get_read() { while (r == rc) { pause(10); } rc = r; return { data[r], size }; }
 
-        SpanView<T> get_write() { return { data[w], size }; }
+        void read(SpanView<f32> const& dst)
+        {       
+            static_assert(num::is_power_of_2(SZ));
 
-        void write_complete() { r = (r + 1) & 1; w = !r; }        
+            auto w = wc;
+
+            u32 i = 0;
+            auto const min_len = [&]()
+            {
+                auto a = (u32)(w - rc - 1);
+                auto b = (u32)(SZ - wc);
+                auto c = dst.length - i;
+                return num::min(num::min(a, b), c);
+            };
+
+            auto len = min_len();
+
+            int c = 0;
+
+            while (i < dst.length)
+            {
+                auto s = (u8*)(data + rc);
+                auto d = (u8*)(dst.data + i);
+                auto bytes = len * sizeof(f32);
+
+                span::copy_u8(s, d, bytes);
+
+                i += len;
+                rc = (rc + len) & (SZ - 1u);
+                len = min_len();
+
+                c++;
+            }
+        }
+
+
+        void write(SpanView<f32> const& src)
+        {
+            static_assert(num::is_power_of_2(SZ));
+
+            auto r = rc;
+
+            u32 i = 0;
+            auto const min_len = [&]()
+            {
+                auto a = (u32)(r - wc - 1);
+                auto b = (u32)(SZ - wc);
+                auto c = src.length - i;
+                return num::min(num::min(a, b), c);
+            };
+
+            auto len = min_len();
+
+            while (i < src.length)
+            {
+                auto s = (u8*)(src.data + i);
+                auto d = (u8*)(data + wc);
+                auto bytes = len * sizeof(f32);
+
+                span::copy_u8(s, d, bytes);
+
+                i += len;
+                wc = (wc + len) & (SZ - 1u);
+                len = min_len();
+            }
+        }
     };
 }
 
 
 namespace audio
 {
-    using AudioBuffer = RWBuffer<f32, SAMPLE_SIZE>;
+    using AudioBuffer = RingBuffer;
 
 
     class AudioData
@@ -167,12 +236,8 @@ namespace audio
         auto src = span::make_view((f32*)stream, len_8 / sizeof(f32));
 
         auto& buffer = *(AudioBuffer*)userdata;
-        auto dst = buffer.get_write();
-
-        assert(src.length == dst.length);
-        span::copy(src, dst);
-
-        buffer.write_complete();
+        
+        buffer.write(src);
     }
 
 
@@ -181,10 +246,30 @@ namespace audio
         auto dst = span::make_view((f32*)stream, len_8 / sizeof(f32));
 
         auto& buffer = *(AudioBuffer*)userdata;
-        auto src = buffer.wait_get_read();
+        
+        buffer.read(dst);
 
-        assert(src.length == dst.length);
-        span::copy(src, dst);
+        /*static u32 phase = 0;
+
+        auto len = len_8;
+        auto freq = 440;
+        auto amp = 0.8f;
+
+        float* buffer = (float*)stream;
+        int samples = len / sizeof(float); // Number of float samples
+        
+        for (int i = 0; i < samples; i++) {
+            // Calculate if we're in the high or low part of the wave
+            Uint32 samplesPerCycle = SAMPLE_RATE / freq;
+            Uint32 halfCycle = samplesPerCycle / 2;
+            float sampleValue = (phase < halfCycle) ? amp : -amp;
+            
+            // Write to buffer (mono)
+            buffer[i] = sampleValue;
+            
+            // Increment phase and wrap around
+            phase = (phase + 1) % samplesPerCycle;
+        }*/
     }
 }
 
@@ -216,6 +301,8 @@ namespace audio
         {
             return false;
         }
+
+        data.buffer.init();
 
         state.status = AudioStatus::Open;
 
@@ -257,6 +344,12 @@ namespace audio
 
     void close(AudioDevice& state)
     {
+        auto& data = AudioData::get(state);
+
+        SDL_PauseAudioDevice(data.capture.device, DEVICE_PAUSE);
+        SDL_PauseAudioDevice(data.playpack.device, DEVICE_PAUSE);
+        SDL_CloseAudioDevice(data.capture.device);
+        SDL_CloseAudioDevice(data.playpack.device);
         state.status = AudioStatus::Closed;
         AudioData::destroy(state);
     }

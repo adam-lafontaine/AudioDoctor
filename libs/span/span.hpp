@@ -41,11 +41,13 @@ using ByteView = SpanView<u8>;
 namespace span
 {
     template <typename T>
-    inline SpanView<T> make_view(T* data, u8 len)
+    inline SpanView<T> make_view(T* data, u32 len)
     {
         SpanView<T> span{};
         span.data = data;
         span.length = len;
+
+        return span;
     }
 }
 

@@ -174,14 +174,14 @@ namespace numeric
 
 
     template <typename T>
-    inline T min(T a, T b)
+    inline constexpr T min(T a, T b)
     {
         return a < b ? a : b;
     }
 
 
     template <typename T>
-    inline T max(T a, T b)
+    inline constexpr T max(T a, T b)
     {
         return a > b ? a : b;
     }
@@ -685,6 +685,12 @@ namespace numeric
 {
 namespace cxpr
 {
+    inline constexpr f32 max(f32 a, f32 b)
+    {
+        return a > b ? a : b;
+    }
+
+
     inline constexpr f64 fma(f64 a, f64 b, f64 c)
     {
         return a * b + c;
