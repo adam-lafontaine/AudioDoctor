@@ -7,7 +7,6 @@
 #include <thread>
 #include <cstdlib>
 #include <cassert>
-#include <cstdio>
 
 
 namespace audio
@@ -32,6 +31,7 @@ namespace audio
     public:
         SDL_AudioSpec spec;
         SDL_AudioDeviceID device;
+        SDL_mutex* mutex;
     };
 
 
@@ -49,6 +49,12 @@ namespace audio
 
         data.device = SDL_OpenAudioDevice(0, AUDIO_CAPTURE, &desired, &data.spec, 0);
         if (!data.device)
+        {
+            return false;
+        }
+
+        data.mutex = SDL_CreateMutex();
+        if (!data.mutex)
         {
             return false;
         }
@@ -71,6 +77,12 @@ namespace audio
 
         data.device = SDL_OpenAudioDevice(0, AUDIO_PLAYBACK, &desired, &data.spec, 0);
         if (!data.device)
+        {
+            return false;
+        }
+
+        data.mutex = SDL_CreateMutex();
+        if (!data.mutex)
         {
             return false;
         }
@@ -102,106 +114,85 @@ namespace audio
 
 namespace audio
 {
-    class RingBuffer
+    class SampleQueue
     {
     private:
-        static constexpr u16 SZ = 4096;
-        u16 rc;
-        u16 wc;
+        u8 rc;
+        u8 wc;
+        b8 stop;
 
-        f32 data[SZ];
+        static constexpr u32 N = 4;
+
+        f32 data[N][SAMPLE_SIZE];
+
+
     public:
+        void init() { rc = wc = stop = 0; SDL_memset(data[0], 0, N * SAMPLE_SIZE); }
 
-        void init()
+        void disable() { stop = 1; }
+
+
+        void push_write(SpanView<f32> const& src)
         {
-            wc = 0;
-            rc = SZ / 2;
-            SDL_memset(data, 0, SZ);
-        }
-
-
-        void read(SpanView<f32> const& dst)
-        {       
-            static_assert(num::is_power_of_2(SZ));
-
-            auto w = wc;
-
-            u32 i = 0;
-            auto const min_len = [&]()
+            if (stop)
             {
-                auto a = (u32)(w - rc - 1);
-                auto b = (u32)(SZ - wc);
-                auto c = dst.length - i;
-                return num::min(num::min(a, b), c);
-            };
-
-            auto len = min_len();
-
-            int c = 0;
-
-            while (i < dst.length)
-            {
-                auto s = (u8*)(data + rc);
-                auto d = (u8*)(dst.data + i);
-                auto bytes = len * sizeof(f32);
-
-                span::copy_u8(s, d, bytes);
-
-                i += len;
-                rc = (rc + len) & (SZ - 1u);
-                len = min_len();
-
-                c++;
+                return;
             }
+
+            static_assert(num::is_power_of_2(N));
+            wc = (wc + 1) & (N - 1u);
+
+            assert(src.length <= SAMPLE_SIZE);
+
+            auto len = num::min(src.length, SAMPLE_SIZE);
+
+            auto dst = span::make_view(data[wc], len);
+
+            span::copy(src, dst);
         }
 
 
-        void write(SpanView<f32> const& src)
-        {
-            static_assert(num::is_power_of_2(SZ));
-
-            auto r = rc;
-
-            u32 i = 0;
-            auto const min_len = [&]()
+        void pop_read(SpanView<f32> const& dst)
+        {     
+            if (stop)
             {
-                auto a = (u32)(r - wc - 1);
-                auto b = (u32)(SZ - wc);
-                auto c = src.length - i;
-                return num::min(num::min(a, b), c);
-            };
-
-            auto len = min_len();
-
-            while (i < src.length)
-            {
-                auto s = (u8*)(src.data + i);
-                auto d = (u8*)(data + wc);
-                auto bytes = len * sizeof(f32);
-
-                span::copy_u8(s, d, bytes);
-
-                i += len;
-                wc = (wc + len) & (SZ - 1u);
-                len = min_len();
+                return;
             }
+
+            while (rc == wc)
+            {
+                pause(10);
+                if (stop)
+                {
+                    return;
+                }
+            }
+
+            assert(dst.length <= SAMPLE_SIZE);
+
+            auto len = num::min(dst.length, SAMPLE_SIZE);
+
+            auto src = span::make_view(data[rc], len);
+
+            span::copy(src, dst);
+
+            static_assert(num::is_power_of_2(N));
+            rc = (rc + 1) & (N - 1u);
         }
+        
     };
 }
 
 
 namespace audio
 {
-    using AudioBuffer = RingBuffer;
-
-
     class AudioData
     {
     public:
         AudioSDL capture;
-        AudioSDL playpack;
-
-        AudioBuffer buffer;
+        AudioSDL playback;
+        
+        SampleQueue queue;
 
         static AudioData* create() { return (AudioData*)std::malloc(sizeof(AudioData)); }
 
@@ -232,44 +223,26 @@ namespace audio
 
 
     static void capture_cb(void* userdata, Uint8* stream, int len_8)
-    {
-        auto src = span::make_view((f32*)stream, len_8 / sizeof(f32));
+    {        
+        auto& data = *(AudioData*)userdata;
 
-        auto& buffer = *(AudioBuffer*)userdata;
+        SDL_LockMutex(data.capture.mutex);
         
-        buffer.write(src);
+        data.queue.push_write(span::make_view((f32*)stream, len_8 / sizeof(f32)));
+
+        SDL_UnlockMutex(data.capture.mutex);
     }
 
 
     static void playback_cb(void* userdata, Uint8* stream, int len_8)
     {
-        auto dst = span::make_view((f32*)stream, len_8 / sizeof(f32));
+        auto& data = *(AudioData*)userdata;
 
-        auto& buffer = *(AudioBuffer*)userdata;
+        SDL_LockMutex(data.playback.mutex);
         
-        buffer.read(dst);
+        data.queue.pop_read(span::make_view((f32*)stream, len_8 / sizeof(f32)));
 
-        /*static u32 phase = 0;
-
-        auto len = len_8;
-        auto freq = 440;
-        auto amp = 0.8f;
-
-        float* buffer = (float*)stream;
-        int samples = len / sizeof(float); // Number of float samples
-        
-        for (int i = 0; i < samples; i++) {
-            // Calculate if we're in the high or low part of the wave
-            Uint32 samplesPerCycle = SAMPLE_RATE / freq;
-            Uint32 halfCycle = samplesPerCycle / 2;
-            float sampleValue = (phase < halfCycle) ? amp : -amp;
-            
-            // Write to buffer (mono)
-            buffer[i] = sampleValue;
-            
-            // Increment phase and wrap around
-            phase = (phase + 1) % samplesPerCycle;
-        }*/
+        SDL_UnlockMutex(data.playback.mutex);
     }
 }
 
@@ -292,17 +265,15 @@ namespace audio
 
         auto& data = AudioData::get(state);
 
-        if (!open_capture_device(data.capture, capture_cb, &data.buffer))
+        if (!open_capture_device(data.capture, capture_cb, &data))
         {
             return false;
         }
 
-        if (!open_playback_device(data.playpack, playback_cb, &data.buffer))
+        if (!open_playback_device(data.playback, playback_cb, &data))
         {
             return false;
         }
-
-        data.buffer.init();
 
         state.status = AudioStatus::Open;
 
@@ -318,9 +289,11 @@ namespace audio
         }
 
         auto& data = AudioData::get(state);
+        
+        data.queue.init();
 
         SDL_PauseAudioDevice(data.capture.device, DEVICE_RUN);
-        SDL_PauseAudioDevice(data.playpack.device, DEVICE_RUN);
+        SDL_PauseAudioDevice(data.playback.device, DEVICE_RUN);
 
         state.status = AudioStatus::Running;
     }
@@ -334,9 +307,16 @@ namespace audio
         }
 
         auto& data = AudioData::get(state);
+        data.queue.disable();
+
+        SDL_LockMutex(data.capture.mutex);
+        SDL_LockMutex(data.playback.mutex);
 
         SDL_PauseAudioDevice(data.capture.device, DEVICE_PAUSE);
-        SDL_PauseAudioDevice(data.playpack.device, DEVICE_PAUSE);
+        SDL_PauseAudioDevice(data.playback.device, DEVICE_PAUSE);
+
+        SDL_UnlockMutex(data.capture.mutex);
+        SDL_UnlockMutex(data.playback.mutex);
 
         state.status = AudioStatus::Open;
     }
@@ -346,10 +326,20 @@ namespace audio
     {
         auto& data = AudioData::get(state);
 
+        SDL_LockMutex(data.capture.mutex);
+        SDL_LockMutex(data.playback.mutex);
+
         SDL_PauseAudioDevice(data.capture.device, DEVICE_PAUSE);
-        SDL_PauseAudioDevice(data.playpack.device, DEVICE_PAUSE);
+        SDL_PauseAudioDevice(data.playback.device, DEVICE_PAUSE);
+
+        SDL_UnlockMutex(data.capture.mutex);
+        SDL_UnlockMutex(data.playback.mutex);
+
+        pause(100);
+
         SDL_CloseAudioDevice(data.capture.device);
-        SDL_CloseAudioDevice(data.playpack.device);
+        SDL_CloseAudioDevice(data.playback.device);
+        
         state.status = AudioStatus::Closed;
         AudioData::destroy(state);
     }
