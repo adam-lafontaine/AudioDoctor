@@ -28,7 +28,9 @@ namespace audio
 
     static constexpr u32 SAMPLE_BASE2_EXP = 11;
 
-    static constexpr u32 SAMPLE_SIZE = num::cxpr::pow(2, SAMPLE_BASE2_EXP);
+    using FFT = fft::FFT_Light<SAMPLE_BASE2_EXP>;
+
+    static constexpr u32 SAMPLE_SIZE = FFT::size;
 
 
     class AudioSDL
@@ -83,7 +85,7 @@ namespace audio
     }
 
 
-    static void pause(i64 ns)
+    static inline void pause(i64 ns)
     {
         std::this_thread::sleep_for(std::chrono::nanoseconds(ns));
     }
@@ -96,7 +98,7 @@ namespace audio
         auto sleep_ns = target_ns - sw.get_time_nano();
         if (sleep_ns > 0)
         {
-            std::this_thread::sleep_for(std::chrono::nanoseconds((i64)(sleep_ns * fudge)));
+            pause((i64)(sleep_ns * fudge));
         }
 
         sw.start();
@@ -113,8 +115,10 @@ namespace audio
         u8 wc;
         b8 stop;
 
+        FFT fft;
+
         static constexpr u32 N = 4;
-        static constexpr u32 SZ = SAMPLE_SIZE;
+        static constexpr u32 SZ = FFT::size;
 
         union
         {
@@ -125,36 +129,44 @@ namespace audio
 
 
     public:
-        void init() { rc = wc = stop = 0; SDL_memset(data.memory, 0, N * SZ * sizeof(f32)); }
+        void reset() { wc = 1; rc = stop = 0; SDL_memset(data.memory, 0, N * SZ * sizeof(f32)); }
+
+        void init() { reset(); fft.init(); static_assert(num::is_power_of_2(N)); }
 
         void disable() { stop = 1; }
 
 
-        void push_write(SpanView<f32> const& src)
+        void push(SpanView<f32> const& src)
         {
-            if (stop)
+            if (stop || src.length != SZ)
             {
                 return;
             }
 
-            static_assert(num::is_power_of_2(N));
-            wc = (wc + 1) & (N - 1u);
+            while ((u8)(rc - wc) == 1)
+            {
+                pause(10);
+                if (stop)
+                {
+                    return;
+                }
+            }
 
-            assert(src.length <= SAMPLE_SIZE);
-
-            auto len = num::min(src.length, SAMPLE_SIZE);
-            auto dst = span::make_view(data.slots[wc], len);
+            ++wc;
+            
+            auto dst = span::make_view(data.slots[wc & (N - 1u)], SZ);
 
             span::copy(src, dst);
+
+            fft.forward(dst.data);
         }
 
 
-        void pop_read(SpanView<f32> const& dst)
+        void pop(SpanView<f32> const& dst)
         {     
-            assert(dst.length <= SAMPLE_SIZE);
-
-            auto len = num::min(dst.length, SAMPLE_SIZE);
-            auto src = span::make_view(data.slots[rc], len);
+            assert(dst.length >= SZ);
+            
+            auto src = span::make_view(data.slots[rc & (N - 1u)], SZ);
 
             if (stop)
             {
@@ -172,8 +184,9 @@ namespace audio
 
             span::copy(src, dst);
 
-            static_assert(num::is_power_of_2(N));
-            rc = (rc + 1) & (N - 1u);
+            fft.inverse(dst.data);
+            
+            ++rc;
         }
         
     };
@@ -182,9 +195,6 @@ namespace audio
 
 namespace audio
 {
-    using FFT = fft::FFT<SAMPLE_BASE2_EXP>;
-
-
     class AudioData
     {
     public:
@@ -192,8 +202,6 @@ namespace audio
         AudioSDL playback;
         
         SampleQueue queue;
-
-        FFT fft;
 
         static AudioData* create() { return (AudioData*)std::malloc(sizeof(AudioData)); }
 
@@ -223,16 +231,18 @@ namespace audio
     static void capture_cb(void* userdata, Uint8* stream, int len_8)
     {        
         auto& data = *(AudioData*)userdata;
+        auto span = span::make_view((f32*)stream, len_8 / sizeof(f32));
         
-        data.queue.push_write(span::make_view((f32*)stream, len_8 / sizeof(f32)));
+        data.queue.push(span);
     }
 
 
     static void playback_cb(void* userdata, Uint8* stream, int len_8)
     {
         auto& data = *(AudioData*)userdata;
+        auto span = span::make_view((f32*)stream, len_8 / sizeof(f32));
         
-        data.queue.pop_read(span::make_view((f32*)stream, len_8 / sizeof(f32)));
+        data.queue.pop(span);
     }
 }
 
@@ -265,6 +275,8 @@ namespace audio
             return false;
         }
 
+        data.queue.init();
+
         state.status = AudioStatus::Open;
 
         return true;
@@ -280,7 +292,7 @@ namespace audio
 
         auto& data = AudioData::get(state);
         
-        data.queue.init();
+        data.queue.reset();
 
         SDL_PauseAudioDevice(data.capture.device, DEVICE_RUN);
         SDL_PauseAudioDevice(data.playback.device, DEVICE_RUN);

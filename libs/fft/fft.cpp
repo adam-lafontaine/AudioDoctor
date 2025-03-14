@@ -32,15 +32,19 @@ namespace internal
     }
 
 
-    void inverse(u32 n, f32* buffer, i32* ip, f32* w)
-    {
-        rdft_inverse((int)n, buffer, ip, w);
-    }
-
-
     void forward(u32 n, f32* buffer, i32* ip, f32* w)
     {
         rdft_forward((int)n, buffer, ip, w);
+    }
+
+
+    void inverse(u32 n, f32* buffer, i32* ip, f32* w)
+    {
+        rdft_inverse((int)n, buffer, ip, w);        
+        for (u32 i = 0; i < n; i++)
+        {
+            buffer[i] /= n;
+        }
     }
 
     #include "fftsg_f32.cpp"

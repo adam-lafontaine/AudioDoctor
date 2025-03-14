@@ -98,7 +98,7 @@ audio_h += $(types_h)
 audio_c := $(audio)/audio.cpp
 audio_c += $(span_h)
 audio_c += $(numeric_h)
-#audio_c += $(fft_h)
+audio_c += $(fft_h)
 #audio_c += $(stopwatch_h)
 
 #************
@@ -127,7 +127,7 @@ main_dep := $(imgui_include_h)
 main_dep += $(pltfm)/main_o.cpp
 main_dep += $(display_h)
 main_dep += $(stb_libs_c)
-#main_dep += $(fft_c)
+main_dep += $(fft_c)
 main_dep += $(audio_c)
 main_dep += $(span_c)
 
