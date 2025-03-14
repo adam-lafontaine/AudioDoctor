@@ -1,4 +1,5 @@
 #include "fft.hpp"
+#include "../span/span.hpp"
 
 namespace fft
 {
@@ -40,11 +41,17 @@ namespace internal
 
     void inverse(u32 n, f32* buffer, i32* ip, f32* w)
     {
-        rdft_inverse((int)n, buffer, ip, w);        
+        rdft_inverse((int)n, buffer, ip, w);
+        
+        f32 max = 0.0f;
         for (u32 i = 0; i < n; i++)
         {
-            buffer[i] /= n;
+            max = num::max(max, num::abs(buffer[i]));
         }
+
+        auto view = span::make_view(buffer, n);
+
+        span::mul(view, 1.0f / max, view);
     }
 
     #include "fftsg_f32.cpp"

@@ -116,9 +116,24 @@ namespace span
 {    
     inline void add(SpanView<f32> const& a, SpanView<f32> const& b, SpanView<f32> const& dst)
     {
-        auto len = a.length; // == b.length == dst.length
+        constexpr u32 N = 8;
+        auto len = (a.length / N) * N;
 
-        for (u32 i = 0; i < len; i++)
+        u32 i = 0;
+        for (; i < len; i += N)
+        {
+            dst.data[i] = a.data[i] + b.data[i];
+            dst.data[i + 1] = a.data[i + 1] + b.data[i + 1];
+            dst.data[i + 2] = a.data[i + 2] + b.data[i + 2];
+            dst.data[i + 3] = a.data[i + 3] + b.data[i + 3];
+            dst.data[i + 4] = a.data[i + 4] + b.data[i + 4];
+            dst.data[i + 5] = a.data[i + 5] + b.data[i + 5];
+            dst.data[i + 6] = a.data[i + 6] + b.data[i + 6];
+            dst.data[i + 7] = a.data[i + 7] + b.data[i + 7];
+        }
+
+        len = a.length;
+        for (; i < len; i++)
         {
             dst.data[i] = a.data[i] + b.data[i];
         }
@@ -127,21 +142,84 @@ namespace span
 
     inline void sub(SpanView<f32> const& a, SpanView<f32> const& b, SpanView<f32> const& dst)
     {
-        auto len = a.length; // == b.length == dst.length
+        constexpr u32 N = 8;
+        auto len = (a.length / N) * N;
 
-        for (u32 i = 0; i < len; i++)
+        u32 i = 0;
+        for (; i < len; i += N)
+        {
+            dst.data[i] = a.data[i] + b.data[i];
+            dst.data[i + 1] = a.data[i + 1] - b.data[i + 1];
+            dst.data[i + 2] = a.data[i + 2] - b.data[i + 2];
+            dst.data[i + 3] = a.data[i + 3] - b.data[i + 3];
+            dst.data[i + 4] = a.data[i + 4] - b.data[i + 4];
+            dst.data[i + 5] = a.data[i + 5] - b.data[i + 5];
+            dst.data[i + 6] = a.data[i + 6] - b.data[i + 6];
+            dst.data[i + 7] = a.data[i + 7] - b.data[i + 7];
+        }
+
+        len = a.length;
+        for (; i < len; i++)
         {
             dst.data[i] = a.data[i] - b.data[i];
+        }
+    }
+
+
+    inline void mul(SpanView<f32> const& a, f32 scalar, SpanView<f32> const& dst)
+    {
+        constexpr u32 N = 8;
+        auto len = (a.length / N) * N;
+
+        u32 i = 0;
+        for (; i < len; i += N)
+        {
+            dst.data[i] = a.data[i] * scalar;
+            dst.data[i + 1] = a.data[i + 1] * scalar;
+            dst.data[i + 2] = a.data[i + 2] * scalar;
+            dst.data[i + 3] = a.data[i + 3] * scalar;
+            dst.data[i + 4] = a.data[i + 4] * scalar;
+            dst.data[i + 5] = a.data[i + 5] * scalar;
+            dst.data[i + 6] = a.data[i + 6] * scalar;
+            dst.data[i + 7] = a.data[i + 7] * scalar;
+        }
+
+        len = a.length;
+        for (; i < len; i++)
+        {
+            dst.data[i] = a.data[i] * scalar;
         }
     }
     
 
     inline f32 dot(SpanView<f32> const& a, SpanView<f32> const& b)
     {
-        auto len = a.length; // == b.length
+        constexpr u32 N = 8;
+        auto len = (a.length / N) * N;
+
+        f32 sum[8] = { 0 };
+
+        u32 i = 0;
+        for (; i < len; i += N)
+        {
+            sum[0] += a.data[i] * b.data[i];
+            sum[1] += a.data[i + 1] * b.data[i + 1];
+            sum[2] += a.data[i + 2] * b.data[i + 2];
+            sum[3] += a.data[i + 3] * b.data[i + 3];
+            sum[4] += a.data[i + 4] * b.data[i + 4];
+            sum[5] += a.data[i + 5] * b.data[i + 5];
+            sum[6] += a.data[i + 6] * b.data[i + 6];
+            sum[7] += a.data[i + 7] * b.data[i + 7];
+        }
 
         f32 res = 0.0f;
-        for (u32 i = 0; i < len; i++)
+        for (u32 s = 0; s < N; s++)
+        {
+            res += sum[s];
+        }
+
+        len = a.length;
+        for (; i < len; i++)
         {
             res += a.data[i] * b.data[i];
         }
@@ -256,15 +334,14 @@ namespace span
     template <typename S, typename D, class FUNC>
     inline void transform(SpanView<S> const& src, SpanView<D> const& dst, FUNC const& func)
     {
-        auto len = src.length;
-        constexpr auto N = 8;
-
-        assert(len % N == 0);
+        constexpr u32 N = 8;
+        auto len = (a.length / N) * N;
 
         auto s = src.data;
         auto d = dst.data;
 
-        for (u32 i = 0; i < len; i += N)
+        u32 i = 0;
+        for (; i < len; i += N)
         {
             d[i] = func(s[i]);
             d[i + 1] = func(s[i + 1]);
@@ -275,22 +352,27 @@ namespace span
             d[i + 6] = func(s[i + 6]);
             d[i + 7] = func(s[i + 7]);
         }
+
+        len = a.length;
+        for (; i < len; i++)
+        {
+            d[i] = func(s[i]);
+        }
     }
 
 
     template <typename S1, typename S2, typename D, class FUNC>
     inline void transform(SpanView<S1> const& src1, SpanView<S2> const& src2, SpanView<D> const& dst, FUNC const& func)
     {
-        auto len = src1.length;
-        constexpr auto N = 8;
-
-        assert(len % N == 0);
+        constexpr u32 N = 8;
+        auto len = (a.length / N) * N;
 
         auto s1 = src1.data;
         auto s2 = src2.data;
         auto d = dst.data;
 
-        for (u32 i = 0; i < len; i += N)
+        u32 i = 0;
+        for (; i < len; i += N)
         {
             d[i] = func(s1[i], s2[i]);
             d[i + 1] = func(s1[i + 1], s2[i + 1]);
@@ -300,6 +382,12 @@ namespace span
             d[i + 5] = func(s1[i + 5], s2[i + 5]);
             d[i + 6] = func(s1[i + 6], s2[i + 6]);
             d[i + 7] = func(s1[i + 7], s2[i + 7]);
+        }
+
+        len = a.length;
+        for (; i < len; i++)
+        {
+            d[i] = func(s1[i], s2[i]);
         }
     }
 }
