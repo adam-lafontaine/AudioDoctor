@@ -335,7 +335,7 @@ namespace span
     inline void transform(SpanView<S> const& src, SpanView<D> const& dst, FUNC const& func)
     {
         constexpr u32 N = 8;
-        auto len = (a.length / N) * N;
+        auto len = (src.length / N) * N;
 
         auto s = src.data;
         auto d = dst.data;
@@ -353,7 +353,7 @@ namespace span
             d[i + 7] = func(s[i + 7]);
         }
 
-        len = a.length;
+        len = src.length;
         for (; i < len; i++)
         {
             d[i] = func(s[i]);
@@ -365,7 +365,7 @@ namespace span
     inline void transform(SpanView<S1> const& src1, SpanView<S2> const& src2, SpanView<D> const& dst, FUNC const& func)
     {
         constexpr u32 N = 8;
-        auto len = (a.length / N) * N;
+        auto len = (src1.length / N) * N;
 
         auto s1 = src1.data;
         auto s2 = src2.data;
@@ -384,7 +384,7 @@ namespace span
             d[i + 7] = func(s1[i + 7], s2[i + 7]);
         }
 
-        len = a.length;
+        len = src1.length;
         for (; i < len; i++)
         {
             d[i] = func(s1[i], s2[i]);

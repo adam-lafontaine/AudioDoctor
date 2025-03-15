@@ -15,6 +15,24 @@ namespace internal
     void rdft_inverse(int n, f32 *a, int *ip, f32 *w);
 
 
+    static inline void normalize_n(SpanView<f32> const& view)
+    {        
+        span::mul(view, 1.0f / view.length, view);
+    }
+
+
+    static inline void normalize_max(SpanView<f32> const& view)
+    {
+        f32 max = 0.0f;
+        for (u32 i = 0; i < view.length; i++)
+        {
+            max = num::max(max, num::abs(view.data[i]));
+        }
+
+        span::mul(view, 1.0f / max, view);
+    }
+
+
     void init_ip_w(u32 n, i32* ip, f32* w)
     {
         rdft_ip_w((int)n, ip, w);
@@ -43,15 +61,7 @@ namespace internal
     {
         rdft_inverse((int)n, buffer, ip, w);
         
-        f32 max = 0.0f;
-        for (u32 i = 0; i < n; i++)
-        {
-            max = num::max(max, num::abs(buffer[i]));
-        }
-
-        auto view = span::make_view(buffer, n);
-
-        span::mul(view, 1.0f / max, view);
+        normalize_max(span::make_view(buffer, n));
     }
 
     #include "fftsg_f32.cpp"

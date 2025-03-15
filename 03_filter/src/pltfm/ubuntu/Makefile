@@ -10,8 +10,9 @@ GPP += -mavx -mavx2 -mfma
 NO_FLAGS := 
 SDL2   := `sdl2-config --cflags --libs`
 OPENGL := -lGL -ldl
+FFMPEG := -lavformat -lavcodec -lavutil
 
-ALL_LFLAGS := $(SDL2) $(OPENGL) -lpthread
+ALL_LFLAGS := $(SDL2) $(OPENGL) $(FFMPEG) -lpthread
 
 
 root       := ../../../..
@@ -110,7 +111,7 @@ display := $(src)/display
 
 display_h := $(display)/display.hpp
 display_h += $(qsprintf_h)
-#display_h += $(audio_h)
+display_h += $(audio_h)
 
 #***************
 
