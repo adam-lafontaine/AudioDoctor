@@ -73,7 +73,7 @@ namespace span
     template <typename T>
     inline void fill_32(SpanView<T> const& dst, T value)
     {
-        static_assert(sizeof(T) == sizeof(u32));
+        //static_assert(sizeof(T) == sizeof(u32));
         auto val = *((u32*)&value);
         fill_u32((u32*)dst.data, val, dst.length);
     }
@@ -82,7 +82,7 @@ namespace span
     template <typename T>
     inline void fill_8(SpanView<T> const& dst, T value)
     {
-        static_assert(sizeof(T) == sizeof(u8));
+        //static_assert(sizeof(T) == sizeof(u8));
 
         auto val = *((u8*)&value);
         fill_u8((u8*)dst.data, val, dst.length);

@@ -18,6 +18,8 @@ extern "C" {
 #include <cstdio>
 
 
+/* constants */
+
 namespace audio
 {
     namespace num = numeric;
@@ -38,7 +40,16 @@ namespace audio
 
     static constexpr u32 SAMPLE_SIZE = FFT::size;
 
+    constexpr auto AUDIO_FILE_PATH = "/home/adam/Repos/GameEngine/game_asteroids/assets/music/intro_00.ogg";
 
+
+}
+
+
+/* sdl */
+
+namespace audio
+{
     class AudioSDL
     {
     public:
@@ -112,9 +123,11 @@ namespace audio
 }
 
 
+/* audio file */
+
 namespace audio
 {
-    class AudioFileCtx
+    class AudioFileContext
     {
     public:
         AVFormatContext* fmt_ctx = 0;
@@ -124,13 +137,10 @@ namespace audio
         int audio_stream_idx = -1;
 
         int n_channels = 0;
-
-        f32* buffer = 0;
-        u32 n_samples = 0;
     };
 
 
-    void destroy_ffmpeg(AudioFileCtx& ctx)
+    void destroy(AudioFileContext& ctx)
     {
         if (ctx.codec_ctx)
         {
@@ -142,23 +152,16 @@ namespace audio
             avformat_close_input(&ctx.fmt_ctx);
         }
 
-        if (ctx.buffer)
-        {
-            std::free(ctx.buffer);
-        }
-
         ctx.fmt_ctx = 0;
         ctx.codecpar = 0;
         ctx.codec = 0;
         ctx.codec_ctx = 0;
         ctx.audio_stream_idx = -1;
         ctx.n_channels = 0;
-        ctx.buffer = 0;
-        ctx.n_samples = 0;
     }
 
 
-    bool load_audio_file(AudioFileCtx& ctx, cstr file_path)
+    bool load_audio_file(AudioFileContext& ctx, cstr file_path)
     {        
         //avformat_network_init();
 
@@ -222,30 +225,66 @@ namespace audio
             return false;
         }
         
-        ctx.n_channels = ctx.codec_ctx->channels;
+        ctx.n_channels = ctx.codec_ctx->channels;        
 
+        return true;
+    }    
+
+
+    class AudioSamples
+    {
+        u32 rc = 0;
+    public:
+        f32* data = 0;
+        u32 count = 0;
+
+        b8 ok = 0;
+
+
+        void read(SpanView<f32> const& dst)
+        {
+            auto len = num::min(dst.length, (count - rc));
+            auto src = span::make_view(data + rc, len);
+
+            span::copy(src, dst);
+            
+            rc += len;
+            if (rc >= count)
+            {
+                rc = 0;
+                auto dst_view = span::make_view(dst.data + len, dst.length - len);
+                span::fill(dst_view, 0.0f);
+            }
+        }
+    };
+
+
+    void destroy(AudioSamples& s)
+    {
+        if (s.data)
+        {
+            std::free(s.data);
+        }
+    }
+
+
+    AudioSamples convert_file(AudioFileContext& ctx)
+    {
         auto bq = (AVRational){1, AV_TIME_BASE};
         auto cq = (AVRational){1, ctx.codec_ctx->sample_rate};
 
         int64_t duration_samples = av_rescale_q(ctx.fmt_ctx->duration, bq, cq);
-        size_t total_samples = duration_samples * ctx.n_channels;
+        u32 total_samples = duration_samples * ctx.n_channels;
 
-        ctx.buffer = (f32*)std::malloc(total_samples * sizeof(f32));
-        if (!ctx.buffer)
+        AudioSamples res;
+        res.ok = 0;
+
+        auto data = (f32*)std::malloc(total_samples * sizeof(f32));
+        if (!data)
         {
-            avcodec_free_context(&ctx.codec_ctx);
-            avformat_close_input(&ctx.fmt_ctx);
-            return false;
+            return res;
         }
 
-        ctx.n_samples = total_samples;
-
-        return true;
-    }
-
-
-    SpanView<f32> convert_file(AudioFileCtx& ctx)
-    {
         // Packet and frame for decoding
         AVPacket packet;
         AVFrame *frame = av_frame_alloc();
@@ -273,7 +312,7 @@ namespace audio
 
                     for (int i = 0; i < nb_samples; i++) 
                     {
-                        ctx.buffer[buffer_idx++] = (f32)(samples[i] * norm_f);
+                        data[buffer_idx++] = (f32)(samples[i] * norm_f);
                     }
                 }
             }
@@ -281,10 +320,16 @@ namespace audio
             av_packet_unref(&packet);
         }
 
-        return span::make_view(ctx.buffer, ctx.n_samples);
+        res.data = data;
+        res.count = total_samples;
+        res.ok = 1;
+
+        return res;
     }
 }
 
+
+/* sample queue */
 
 namespace audio
 {
@@ -379,6 +424,8 @@ namespace audio
     {
     public:
         AudioSDL capture;
+        AudioSamples samples;
+
         AudioSDL playback;
         
         SampleQueue queue;
@@ -393,11 +440,29 @@ namespace audio
 
     static bool create_data(AudioDevice& state)
     {
-        auto data = AudioData::create();
-        if (!data)
+        AudioFileContext ctx{};
+        if (!load_audio_file(ctx, AUDIO_FILE_PATH))
         {
             return false;
         }
+
+        auto samples = convert_file(ctx);       
+
+        destroy(ctx);
+
+        if (!samples.ok)
+        {
+            return false;
+        }
+
+        auto data = AudioData::create();
+        if (!data)
+        {
+            destroy(samples);
+            return false;
+        }
+
+        data->samples = samples;
 
         state.handle = (u64)data;
 
@@ -411,7 +476,11 @@ namespace audio
     static void capture_cb(void* userdata, Uint8* stream, int len_8)
     {        
         auto& data = *(AudioData*)userdata;
+
         auto span = span::make_view((f32*)stream, len_8 / sizeof(f32));
+
+        // temp
+        data.samples.read(span);
         
         data.queue.push(span);
     }
@@ -510,6 +579,8 @@ namespace audio
         
         SDL_CloseAudioDevice(data.capture.device);
         SDL_CloseAudioDevice(data.playback.device);
+
+        destroy(data.samples);
         
         state.status = AudioStatus::Closed;
         AudioData::destroy(state);
