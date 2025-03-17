@@ -225,7 +225,7 @@ namespace audio
             return false;
         }
         
-        ctx.n_channels = ctx.codec_ctx->channels;        
+        ctx.n_channels = ctx.codec_ctx->channels;
 
         return true;
     }    
@@ -274,12 +274,12 @@ namespace audio
         auto cq = (AVRational){1, ctx.codec_ctx->sample_rate};
 
         int64_t duration_samples = av_rescale_q(ctx.fmt_ctx->duration, bq, cq);
-        u32 total_samples = duration_samples * ctx.n_channels;
+        //u32 total_samples = duration_samples * ctx.n_channels;
 
         AudioSamples res;
         res.ok = 0;
 
-        auto data = (f32*)std::malloc(total_samples * sizeof(f32));
+        auto data = (f32*)std::malloc(duration_samples * sizeof(f32));
         if (!data)
         {
             return res;
@@ -293,7 +293,7 @@ namespace audio
         packet.size = 0;
         
         u32 buffer_idx = 0;
-        constexpr f64 norm_f = 1.0 / 32768.0;
+        f32 norm_f = ctx.n_channels * 32768.0f;
 
         // Decode and process
         while (av_read_frame(ctx.fmt_ctx, &packet) >= 0) 
@@ -309,10 +309,22 @@ namespace audio
                 {
                     i16* samples = (i16*)frame->data[0];
                     int nb_samples = frame->nb_samples;
+                    int n_channels = ctx.n_channels;
 
-                    for (int i = 0; i < nb_samples; i++) 
+                    u32 i = 0;
+                    for (int s = 0; s < nb_samples; s++)
                     {
-                        data[buffer_idx++] = (f32)(samples[i] * norm_f);
+                        if (buffer_idx >= duration_samples)
+                        {
+                            break;
+                        }
+
+                        f32 out_sample = 0.0f;
+                        for (int c = 0; c < n_channels; c++)
+                        {
+                            out_sample += (f32)samples[i++];
+                        }
+                        data[buffer_idx++] = out_sample / norm_f;
                     }
                 }
             }
@@ -320,8 +332,10 @@ namespace audio
             av_packet_unref(&packet);
         }
 
+        assert(buffer_idx == duration_samples);
+
         res.data = data;
-        res.count = total_samples;
+        res.count = duration_samples;// total_samples;
         res.ok = 1;
 
         return res;
@@ -333,6 +347,13 @@ namespace audio
 
 namespace audio
 {
+    enum class AudioFilter : int
+    {
+        None = 0,
+        FFT
+    };
+
+
     class SampleQueue
     {
     private:
@@ -354,6 +375,10 @@ namespace audio
 
 
     public:
+
+        AudioFilter filter = AudioFilter::None;
+
+
         void reset() { wc = 1; rc = stop = 0; SDL_zero(data); }
 
         void init() { reset(); fft.init(); static_assert(num::is_power_of_2(N)); }
@@ -383,7 +408,18 @@ namespace audio
 
             span::copy(src, dst);
 
-            fft.forward(dst.data);
+            switch(filter)
+            {
+            case AudioFilter::None:
+                break;
+            
+            case AudioFilter::FFT:
+                fft.forward(dst.data);
+                break;
+
+            default:
+                break;
+            }
         }
 
 
@@ -408,8 +444,18 @@ namespace audio
             }
 
             span::copy(src, dst);
-
+            switch(filter)
+            {
+            case AudioFilter::None:
+                break;
+            
+            case AudioFilter::FFT:
             fft.inverse(dst.data);
+                break;
+
+            default:
+                break;
+            }            
             
             ++rc;
         }
