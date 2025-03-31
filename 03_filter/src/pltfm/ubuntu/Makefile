@@ -94,10 +94,9 @@ fft_c += $(fft)/fftsg_f32.cpp
 audio := $(src)/audio
 
 audio_h := $(audio)/audio.hpp
-audio_h += $(types_h)
+audio_h += $(span_h)
 
 audio_c := $(audio)/audio.cpp
-audio_c += $(span_h)
 audio_c += $(numeric_h)
 audio_c += $(fft_h)
 #audio_c += $(stopwatch_h)

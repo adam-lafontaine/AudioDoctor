@@ -56,9 +56,9 @@ namespace span
 {
     void copy_u8(u8* src, u8* dst, u64 len);
 
+    void copy_u8(u8* src, u8* dst1, u8* dst2, u64 len_u8);
 
     void fill_u8(u8* dst, u8 value, u64 len);
-
 
     void fill_u32(u32* dst, u32 value, u64 len);
 
@@ -67,6 +67,13 @@ namespace span
     inline void copy(SpanView<T> const& src, SpanView<T> const& dst)
     {
         copy_u8((u8*)src.data, (u8*)dst.data, src.length * sizeof(T));
+    }
+
+
+    template <typename T>
+    inline void copy(SpanView<T> const& src, SpanView<T> const& dst1, SpanView<T> const& dst2)
+    {
+        copy_u8((u8*)src.data, (u8*)dst1.data, (u8*)dst2.data, src.length * sizeof(T));
     }
 
 

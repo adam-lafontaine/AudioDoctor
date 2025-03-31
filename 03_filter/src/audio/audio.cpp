@@ -1,7 +1,6 @@
 #include "audio.hpp"
 #include "../../../libs/util/stopwatch.hpp"
 #include "../../../libs/util/numeric.hpp"
-#include "../../../libs/span/span.hpp"
 #include "../../../libs/fft/fft.hpp"
 
 // sudo apt-get install ffmpeg libavformat-dev libavcodec-dev libavutil-dev libswscale-dev
@@ -364,7 +363,7 @@ namespace audio
         FFT fft;
 
         static constexpr u32 N = 4;
-        static constexpr u32 SZ = FFT::size;
+        static constexpr u32 SZ = SAMPLE_SIZE;
 
         union
         {
@@ -373,11 +372,10 @@ namespace audio
             f32 slots[N][SZ];
         } data;
 
+        AudioFilter data_filters[N];
+
 
     public:
-
-        AudioFilter filter = AudioFilter::None;
-
 
         void reset() { wc = 1; rc = stop = 0; SDL_zero(data); }
 
@@ -386,7 +384,7 @@ namespace audio
         void disable() { stop = 1; }
 
 
-        void push(SpanView<f32> const& src)
+        void push(SpanView<f32> const& src, AudioFilter filter = AudioFilter::None)
         {
             if (stop || src.length != SZ)
             {
@@ -403,8 +401,10 @@ namespace audio
             }
 
             ++wc;
+            auto w = wc & (N - 1u);
             
-            auto dst = span::make_view(data.slots[wc & (N - 1u)], SZ);
+            auto dst = span::make_view(data.slots[w], SZ);
+            data_filters[w] = filter;
 
             span::copy(src, dst);
 
@@ -426,8 +426,11 @@ namespace audio
         void pop(SpanView<f32> const& dst)
         {     
             assert(dst.length >= SZ);
+
+            auto r = rc & (N - 1u);
             
-            auto src = span::make_view(data.slots[rc & (N - 1u)], SZ);
+            auto src = span::make_view(data.slots[r], SZ);
+            auto filter = data_filters[r];
 
             if (stop)
             {
@@ -444,18 +447,19 @@ namespace audio
             }
 
             span::copy(src, dst);
+
             switch(filter)
             {
             case AudioFilter::None:
                 break;
             
             case AudioFilter::FFT:
-            fft.inverse(dst.data);
+                fft.inverse(src.data);
                 break;
 
             default:
                 break;
-            }            
+            }
             
             ++rc;
         }
@@ -470,17 +474,23 @@ namespace audio
     {
     public:
         AudioSDL capture;
-        AudioSamples samples;
+        AudioSamples file_samples;
 
         AudioSDL playback;
         
         SampleQueue queue;
 
+        SpanView<f32> in_samples;
+        SpanView<f32> out_samples;
+
+        f32 buffer32[SAMPLE_SIZE * 2];
+
+
         static AudioData* create() { return (AudioData*)std::malloc(sizeof(AudioData)); }
 
         static void destroy(AudioDevice& device) { std::free((AudioData*)(device.handle)); }
 
-        static AudioData& get(AudioDevice& device) { return *(AudioData*)(device.handle); }
+        static AudioData& get(AudioDevice const& device) { return *(AudioData*)(device.handle); }
     };
 
 
@@ -492,11 +502,11 @@ namespace audio
             return false;
         }
 
-        auto samples = convert_file(ctx);       
+        auto file = convert_file(ctx);       
 
         destroy(ctx);
 
-        if (!samples.ok)
+        if (!file.ok)
         {
             return false;
         }
@@ -504,11 +514,15 @@ namespace audio
         auto data = AudioData::create();
         if (!data)
         {
-            destroy(samples);
+            destroy(file);
             return false;
         }
 
-        data->samples = samples;
+        SDL_zero(data->buffer32);
+
+        data->file_samples = file;
+        data->in_samples = span::make_view(data->buffer32, SAMPLE_SIZE);
+        data->out_samples = span::make_view(data->buffer32 + SAMPLE_SIZE, SAMPLE_SIZE);
 
         state.handle = (u64)data;
 
@@ -526,9 +540,11 @@ namespace audio
         auto span = span::make_view((f32*)stream, len_8 / sizeof(f32));
 
         // temp
-        data.samples.read(span);
-        
-        data.queue.push(span);
+        //data.file_samples.read(span);
+
+
+        span::copy(span, data.in_samples);
+        //data.queue.push(span);
     }
 
 
@@ -538,6 +554,7 @@ namespace audio
         auto span = span::make_view((f32*)stream, len_8 / sizeof(f32));
         
         data.queue.pop(span);
+        span::copy(span, data.out_samples);
     }
 }
 
@@ -626,9 +643,21 @@ namespace audio
         SDL_CloseAudioDevice(data.capture.device);
         SDL_CloseAudioDevice(data.playback.device);
 
-        destroy(data.samples);
+        destroy(data.file_samples);
         
         state.status = AudioStatus::Closed;
         AudioData::destroy(state);
+    }
+
+
+    SpanView<f32> in_samples(AudioDevice const& device)
+    {
+        return AudioData::get(device).in_samples;
+    }
+
+
+    SpanView<f32> out_samples(AudioDevice const& device)
+    {
+        return AudioData::get(device).out_samples;
     }
 }

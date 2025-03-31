@@ -336,6 +336,105 @@ namespace span
         i = len_u8 - size1024;
         bit_copy_1024(src + i, dst + i);
     }
+
+
+    static void copy_64(u8* src, u8* dst1, u8* dst2, u64 len_u8)
+    {
+        auto const len64 = len_u8 / size64;
+        auto const src64 = (u64*)src;
+        auto const dst164 = (u64*)dst1;
+        auto const dst264 = (u64*)dst2;
+
+        for (u64 i = 0; i < len64; ++i)
+        {
+            dst164[i] = src64[i];
+            dst264[i] = src64[i];
+        }
+
+        auto const len8 = len_u8 - len64 * size64;
+        auto const src8 = (u8*)(src64 + len64);
+        auto const dst18 = (u8*)(dst164 + len64);
+        auto const dst28 = (u8*)(dst264 + len64);
+
+        bit_copy_64(src8, dst18, len8);
+        bit_copy_64(src8, dst28, len8);
+    }
+
+
+    static void copy_128(u8* src, u8* dst1, u8* dst2, u64 len_u8)
+    {
+        auto const n128 = len_u8 / size128;
+        auto const end128 = n128 * size128;
+
+        u64 i = 0;
+
+        for (; i < end128; i += size128)
+        {
+            bit_copy_128(src + i, dst1 + i);
+            bit_copy_128(src + i, dst2 + i);
+        }
+
+        i = len_u8 - size128;
+        bit_copy_128(src + i, dst1 + i);
+        bit_copy_128(src + i, dst2 + i);
+    }
+
+
+    static void copy_256(u8* src, u8* dst1, u8* dst2, u64 len_u8)
+    {
+        auto const n256 = len_u8 / size256;
+        auto const end256 = n256 * size256;
+
+        u64 i = 0;
+
+        for (; i < end256; i += size256)
+        {            
+            bit_copy_256(src + i, dst1 + i);
+            bit_copy_256(src + i, dst2 + i);
+        }
+
+        i = len_u8 - size256;
+        bit_copy_256(src + i, dst1 + i);
+        bit_copy_256(src + i, dst2 + i);
+    }
+
+
+    static void copy_512(u8* src, u8* dst1, u8* dst2, u64 len_u8)
+    {
+        auto const n512 = len_u8 / size512;
+        auto const end512 = n512 * size512;
+
+        u64 i = 0;
+
+        for(; i < end512; i += size512)
+        {
+            bit_copy_512(src + i, dst1 + i);
+            bit_copy_512(src + i, dst2 + i);
+        }
+
+        i = len_u8 - size512;
+        bit_copy_512(src + i, dst1 + i);
+        bit_copy_512(src + i, dst2 + i);
+    }
+
+
+    static void copy_1024(u8* src, u8* dst1, u8* dst2, u64 len_u8)
+    {
+        auto const n1024 = len_u8 / size1024;
+        auto const end1024 = n1024 * size1024;
+
+        u64 i = 0;
+
+        for(; i < end1024; i += size1024)
+        {
+            bit_copy_1024(src + i, dst1 + i);
+            bit_copy_1024(src + i, dst2 + i);
+        }
+
+        i = len_u8 - size1024;
+        bit_copy_1024(src + i, dst1 + i);
+        bit_copy_1024(src + i, dst2 + i);
+    }
 }
 
 
@@ -560,6 +659,42 @@ namespace span
             break;
         default:
             copy_1024(src, dst, len_u8);
+        }
+    }
+
+
+    void copy_u8(u8* src, u8* dst1, u8* dst2, u64 len_u8)
+    {
+        auto const n_64 = len_u8 / 8;
+
+        switch (n_64)
+        {
+        case 0:
+        case 1:
+            copy_64(src, dst1, dst2, len_u8);
+            break;
+        case 2:
+        case 3:
+            copy_128(src, dst1, dst2, len_u8);
+            break;
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+            copy_256(src, dst1, dst2, len_u8);
+            break;
+        case 8:
+        case 9:
+        case 10:
+        case 11:
+        case 12:
+        case 13:
+        case 14:
+        case 15:
+            copy_512(src, dst1, dst2, len_u8);
+            break;
+        default:
+            copy_1024(src, dst1, dst2, len_u8);
         }
     }
 

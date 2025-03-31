@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../../libs/util/types.hpp"
+#include "../../../libs/span/span.hpp"
 
 
 namespace audio
@@ -22,11 +22,16 @@ namespace audio
     };
 
 
-    bool init(AudioDevice& state);
+    bool init(AudioDevice& device);
 
-    void start(AudioDevice& state);
+    void start(AudioDevice& device);
 
-    void pause(AudioDevice& state);
+    void pause(AudioDevice& device);
 
-    void close(AudioDevice& state);
+    void close(AudioDevice& device);
+
+
+    SpanView<f32> in_samples(AudioDevice const& device);
+
+    SpanView<f32> out_samples(AudioDevice const& device);
 }
